@@ -55,3 +55,9 @@ Simone: "rimane aperta la questione raccolte, non mi fanno impazzire". Lo scaffa
 - **C · Cartella con elenco:** cartella con linguetta, numero, nome in Literata e i primi titoli in elenco con "+ altri N". È la più leggibile su e-ink, ma è anche la più diversa dalle copertine.
 
 ![Proposte raccolte](img/raccolte-proposte-abc.png)
+
+### Scelta: A · Pila di copertine (14:44)
+
+Simone ha scelto la **A**. Nel componente `Raccolte` (entrambe le varianti, Normale e Focus) lo scaffale è nascosto ma non cancellato (livello `Ripiani`), il riquadro non ha più fondo né bordo e dentro c'è una `Pila` di tre istanze di `Copertina`, sfalsate di 10px verso l'alto a destra. In ogni raccolta della Home si cambiano copertine e testi delle tre istanze (Stile, Autore, Titolo). Lo `Scaffale` ora ha dimensione fissa, perché senza i ripiani si stringeva.
+
+![Home con raccolte a pila](img/home-raccolte-pila.png)

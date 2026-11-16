@@ -28,7 +28,7 @@ direttamente sul framebuffer e-ink e si controlla con il pad a 5 direzioni e i t
 ## Roadmap
 
 - [x] Jailbreak e accesso via USBNetwork/SSH (guida: [docs/jailbreak.md](docs/jailbreak.md))
-- [ ] Backup delle partizioni ([strumenti/backup-k4.sh](strumenti/backup-k4.sh)) · script pronto, da eseguire
+- [x] Backup delle partizioni ([strumenti/backup-k4.sh](strumenti/backup-k4.sh))
 - [x] Toolchain di cross-compilazione ARM (Zig, `arm-linux-musleabi`, statico)
 - [ ] "Hello world" sul framebuffer ([esperimenti/01-ciao](esperimenti/01-ciao)) · da provare sul Kindle
 - [ ] Testo con font veri tramite FBInk

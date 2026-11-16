@@ -71,3 +71,7 @@ Simone: "fai in modo che il titolo sopporti tre righe e l'autore ne sopporti due
 - In Figma c'è una riga di prova con nomi e titoli lunghi.
 
 ![Famiglie v2, reference e prova limiti](img/copertine-famiglie-v2-reference.png)
+
+## Altre reference (15:20)
+
+Simone: "mettimici altre reference, ci lavoro dopo". Nella sezione Figma, sotto la prova limiti, c'è **"Altre reference per editore"**: 30 copertine vere da Open Library, da 5 a 7 per editore (Adelphi 6, Einaudi 7, Feltrinelli 5, Sellerio 6, Iperborea 6). Sono state cercate con `publisher:<editore>`, perciò sono edizioni recenti e di collane diverse. Si notano gli elementi ricorrenti: il filetto e la cornice di Adelphi, i titoli bold colorati delle copertine Einaudi recenti, le fasce rigate di Feltrinelli UE, il blu con il quadro di Sellerio, la tinta piena con illustrazione di Iperborea. Per scaricarle ho aggiunto all'ambiente cloud altri 7 server `ia*.us.archive.org`.

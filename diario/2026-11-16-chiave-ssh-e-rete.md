@@ -1,6 +1,6 @@
 # 2026-11-16 · Chiave SSH e rete USB sempre attiva
 
-**Stato:** ✅ accesso senza password funzionante (11:58 UTC). Rete automatica attiva dal prossimo riavvio.
+**Stato:** ✅ accesso senza password funzionante (11:58 UTC). 🟡 Rete automatica: dopo il riavvio il Mac non raggiunge il Kindle, da capire.
 
 ## Perché
 
@@ -41,6 +41,15 @@ attivare SSH via Wi-Fi**.
 - Kindle: una riga in più in `/mnt/us/usbnet/etc/authorized_keys`; `usbnet/DISABLED_auto` → `usbnet/auto`.
   Nessuna modifica al sistema (niente `mntroot rw`), nessun riavvio.
 
-## Da verificare
+## Prova del riavvio (13:49–14:19 ora italiana)
 
-- Al prossimo riavvio: che la rete parta da sola e che `ssh kindle` funzioni subito.
+- Simone ha riavviato il Kindle tenendolo collegato. Dopo il riavvio il Kindle **non compare più come
+  disco** nel Finder: la modalità rete sembra partita da sola.
+- Però dal Mac `ping 192.168.15.244` non risponde e `ssh kindle` va in timeout, anche dopo aver
+  staccato e riattaccato il cavo.
+- Sessione chiusa qui. **Da riprendere:** controllare sul Mac se l'interfaccia "RNDIS/Ethernet Gadget"
+  è attiva e ha l'IP `192.168.15.201` (`ifconfig`), e in alternativa resettare la rete a mano dal Kindle
+  (`;debugOn`, `~usbNetwork`, `;debugOff`: il comando accende/spegne).
+- Per tornare alla modalità disco, se serve: nella ricerca del Kindle `;debugOn`, `~usbNetwork`, `;debugOff`
+  spegne la rete per questa sessione. Per renderlo permanente bisogna rinominare `usbnet/auto` in
+  `usbnet/DISABLED_auto` (dal Finder, quando il Kindle è in modalità disco).

@@ -1,6 +1,6 @@
 # 2026-11-16 · USBNetwork: la rete via USB non parte
 
-**Stato:** USBNetwork attivo (10:02 UTC). Prossimo passo: IP sul computer, ping e SSH.
+**Stato:** rete USB funzionante, SSH arriva alla richiesta della password (10:06 UTC). Manca la password di root.
 
 ## Problema
 
@@ -28,3 +28,20 @@ Simone è bloccato al passo "Attivare la rete via USB" della guida (`docs/jailbr
 - Secondo intoppo: sul K4 la ricerca "non fa confermare", perché non c'è un tasto Invio. Si conferma
   scendendo con il pad a 5 direzioni sulla voce di ricerca e premendo il tasto centrale. Aggiunto alla guida.
 - Risultato: dopo il comando il Kindle è sparito come disco USB, segno che USBNetwork è partito.
+
+## Rete e SSH (10:02–10:06 UTC, circa 4 minuti)
+
+- Computer: Mac. IP fisso impostato da Impostazioni di Sistema → Rete → interfaccia del Kindle →
+  TCP/IP → Manualmente (`192.168.15.201`, maschera `255.255.255.0`).
+- `ping 192.168.15.244`: 12 pacchetti su 12, 0% di perdita, circa 3 ms.
+- `ssh root@192.168.15.244`: il Kindle risponde con "Welcome to Kindle!" e chiede la password.
+  L'avviso "post-quantum key exchange" del Mac è normale: il server SSH del Kindle è vecchio, e su un
+  cavo USB tra computer e Kindle non è un problema.
+
+![ping e SSH verso il Kindle](img/2026-11-16-ssh-k4.png)
+
+### Prossimo passo: la password di root
+
+Da provare in ordine: password vuota, `mario`. Se non funzionano, la password del K4 si ricava dal
+numero di serie (calcolatore citato dalla wiki MobileRead: <http://www.sven.de/kindle/>).
+A lungo termine meglio una chiave SSH in `usbnet/etc/authorized_keys`, così non serve password.

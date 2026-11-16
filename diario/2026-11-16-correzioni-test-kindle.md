@@ -80,3 +80,13 @@ Simone sul Kindle: "non si legge molto bene l'autore, più contrasto". L'autore 
 
 Intoppo: con la prima regola (colore in base al fondo della copertina) in Metà e Fasce l'autore era nero
 sulla fascia nera in alto; li ho corretti a mano.
+
+## Autore più grande (14:16 UTC, circa 3 minuti)
+
+Simone: "nomi degli autori più grandi". Lo stile `Copertina/Autore` passa da 11 a **13 px** (interlinea 120%).
+Nella home 4×3, dove le copertine sono più piccole (125 px), l'autore è a 11 px.
+
+![Home 3 colonne con l'autore a 13 px](img/2026-11-16-autore-grande-home.png)
+
+Nota: i nomi lunghi ora vanno su due righe ("ALESSANDRO / MANZONI") e su alcune copertine, come Punti,
+la seconda riga tocca il disegno.

@@ -55,3 +55,13 @@ per riempirla. La vecchia versione è salvata accanto come *00 · Home 3×2 (pri
 
 - Rifare la prova sul Kindle con la nuova palette e la home 4×3.
 - Verificare se le copertine con fondo "Carta" (ora `#EEE`, come la pagina) hanno bisogno di un bordo.
+
+## Bordo sulle copertine color carta (14:12 UTC, circa 3 minuti)
+
+Regola di Simone: "se lo sfondo diventa carta, tutti i libri con sfondo carta devono avere almeno 1 px di
+bordo". Le nove varianti di `Copertina` con fondo Carta (Sole, Righe, Metà, Scacchi, Onde, Montagne,
+Colonne, Gradini, Fasce) hanno ora un bordo interno di 2 px in Inchiostro, come la variante Chiaro.
+Essendo nel componente, vale in tutte le schermate, compresa la nuova *00 · Home 3 colonne (scorrimento)*
+di Simone. Nessuna istanza aveva il fondo sovrascritto a Carta, quindi non c'era altro da correggere.
+
+![Home 3 colonne con i bordi](img/2026-11-16-copertine-bordo-carta.png)

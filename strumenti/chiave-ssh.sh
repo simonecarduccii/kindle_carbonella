@@ -4,7 +4,7 @@
 # Uso (dal Mac, con USBNetwork attivo):   sh strumenti/chiave-ssh.sh
 #
 # Cosa fa:
-#   1. crea la chiave ~/.ssh/kindle (solo la prima volta);
+#   1. crea la chiave RSA ~/.ssh/kindle_rsa (solo la prima volta);
 #   2. copia la parte pubblica nel Kindle, in /mnt/us/usbnet/etc/authorized_keys
 #      (ti chiede la password di root UN'ULTIMA volta);
 #   3. aggiunge a ~/.ssh/config un blocco per il Kindle, così ssh, scp e make run usano la chiave;
@@ -14,7 +14,8 @@
 set -eu
 
 KINDLE_IP="${KINDLE_IP:-192.168.15.244}"
-KEY="$HOME/.ssh/kindle"
+# RSA e non ed25519: il server SSH del Kindle (Dropbear 2015.68) non conosce ed25519.
+KEY="$HOME/.ssh/kindle_rsa"
 CONFIG="$HOME/.ssh/config"
 
 mkdir -p "$HOME/.ssh"
@@ -24,7 +25,7 @@ echo "1/4  Chiave"
 if [ -f "$KEY" ]; then
     echo "     esiste già: $KEY"
 else
-    ssh-keygen -t ed25519 -N "" -C "carbonella-kindle" -f "$KEY"
+    ssh-keygen -t rsa -b 3072 -N "" -C "carbonella-kindle" -f "$KEY"
 fi
 
 echo "2/4  Copio la chiave pubblica sul Kindle (inserisci la password di root)"
@@ -48,6 +49,8 @@ Host kindle $KINDLE_IP
     User root
     IdentityFile $KEY
     IdentitiesOnly yes
+    PubkeyAcceptedAlgorithms +ssh-rsa
+    HostKeyAlgorithms +ssh-rsa
     ControlMaster auto
     ControlPath /tmp/k4-%r@%h
     ControlPersist 600

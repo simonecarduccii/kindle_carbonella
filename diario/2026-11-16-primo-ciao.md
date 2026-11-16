@@ -58,7 +58,15 @@ Cosa ci dice la foto:
 - **Si vede in trasparenza la pagina di prima** (ghosting): l'aggiornamento non ha fatto il
   "lampeggio" completo che pulisce l'e-ink. Da capire se serve un altro tipo di refresh.
 
-_Da aggiungere: la riga `framebuffer: ...` e la riga `refresh: ...` stampate nel Terminale._
+Output di `ciao -i` (11:58 UTC):
+
+```
+framebuffer: id=eink_fb 600x800 (virtual 600x800) bpp=8 line_length=600 grayscale=1
+refresh: ioctl FBIO_EINK_UPDATE_DISPLAY ok
+```
+
+Quindi il K4 ha il driver **einkfb** (`eink_fb`), 8 bit per pixel, una riga = 600 byte esatti, e il
+refresh via ioctl funziona. `grayscale=1` insieme ai colori invertiti conferma: qui 0 = bianco.
 
 ## Prossimi passi
 

@@ -171,8 +171,10 @@ USBNetwork trasforma il cavo USB in una scheda di rete: il computer vede il Kind
    ;debugOff
    ```
    La scorciatoia `;un` / `;uns` vale per i Kindle Touch e successivi: sul K4 di solito non fa nulla.
-   In alternativa, crea un file vuoto chiamato `auto` dentro la cartella `usbnet/` del Kindle e riavvia:
-   USBNetwork partirà da solo a ogni avvio (vedi `README_FIRST.txt` del pacchetto).
+   **Per averla sempre attiva:** rinomina `usbnet/DISABLED_auto` in `usbnet/auto` (via SSH:
+   `mv /mnt/us/usbnet/DISABLED_auto /mnt/us/usbnet/auto`). Dal riavvio successivo USBNetwork parte da
+   solo e il Kindle non appare più come disco USB. Per tornare indietro, rinominalo di nuovo
+   (la documentazione del pacchetto è in `usbnet/info.txt`).
    Mentre USBNetwork è attivo, il Kindle **non** appare più come disco USB: è il segnale che ha funzionato.
 2. Collega il cavo. Sul computer apparirà una nuova interfaccia di rete (su Mac "RNDIS/Ethernet
    Gadget" o simile, su Linux `usb0`). Assegnale un IP fisso:
@@ -190,7 +192,7 @@ ssh root@192.168.15.244
 La password di `root` del K4 è legata al numero di serie. Hai tre strade:
 
 - **Chiave SSH (consigliata):** dopo il primo accesso con password, lancia dal Mac
-  `sh strumenti/chiave-ssh.sh`: crea la chiave `~/.ssh/kindle`, la copia in `usbnet/etc/authorized_keys`
+  `sh strumenti/chiave-ssh.sh`: crea la chiave RSA `~/.ssh/kindle_rsa` (il Dropbear 2015 del K4 non accetta ed25519), la copia in `usbnet/etc/authorized_keys`
   sul Kindle e configura `~/.ssh/config`. Da lì in poi niente password, e basta `ssh kindle`.
 - **Calcolatore della password** dal numero di serie annotato al §1 (citato dalla wiki MobileRead):
   <http://www.sven.de/kindle/>.

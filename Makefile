@@ -7,6 +7,7 @@
 #   make installa   copia il pacchetto sul Kindle via SSH (Host "kindle" in ~/.ssh/config)
 #   make avvia      avvia Carbonella sul Kindle via SSH (come dal menu KUAL)
 #   make log        mostra il registro dell'ultima esecuzione sul Kindle
+#   make diagnosi   raccoglie in build/diagnosi.txt tutto quello che serve se non parte
 #   make clean
 #
 # Serve Zig come cross-compilatore (su Mac: brew install zig).
@@ -73,9 +74,12 @@ avvia:
 	ssh $(SSH_OPTS) $(KINDLE) "/mnt/us/extensions/carbonella/bin/avvia.sh"
 
 log:
-	ssh $(SSH_OPTS) $(KINDLE) "cat /mnt/us/carbonella/carbonella.log"
+	ssh $(SSH_OPTS) $(KINDLE) "cat /mnt/us/carbonella/avvio.log; cat /mnt/us/carbonella/carbonella.log"
+
+diagnosi:
+	KINDLE=$(KINDLE) sh strumenti/diagnosi-kindle.sh
 
 clean:
 	rm -rf build dist
 
-.PHONY: all sim prova dist installa avvia log clean
+.PHONY: all sim prova dist installa avvia log diagnosi clean

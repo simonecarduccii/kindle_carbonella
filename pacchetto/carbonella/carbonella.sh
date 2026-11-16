@@ -12,36 +12,51 @@
 
 BASE=/mnt/us/carbonella
 LOG="$BASE/carbonella.log"
+PIDFILE=/tmp/carbonella.pid
 
 [ -f "$LOG" ] && mv -f "$LOG" "$LOG.prima"
 exec >"$LOG" 2>&1
-echo "Carbonella: avvio $(date)"
+say() { echo "$(date '+%H:%M:%S') carbonella.sh: $*"; }
+say "avvio, argomenti: $*"
+
+# Fermare il framework può mandare segnali anche a noi (eravamo partiti da KUAL):
+# li ignoriamo, il lettore li gestisce da sé.
+trap '' HUP TERM INT
 
 restore() {
-    echo "Carbonella: ripristino $(date)"
+    say "ripristino"
     lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
     if [ -n "$FRAMEWORK_STOPPED" ]; then
+        say "riavvio il framework"
         /etc/init.d/framework start
     fi
-    rm -f /var/run/carbonella.pid
+    rm -f "$PIDFILE"
+    say "fine"
 }
-trap restore EXIT
-trap 'exit 1' INT TERM
 
-if [ -f /var/run/carbonella.pid ] && kill -0 "$(cat /var/run/carbonella.pid)" 2>/dev/null; then
-    echo "Carbonella: già in esecuzione"
-    trap - EXIT
+if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    say "già in esecuzione, esco"
     exit 0
 fi
-echo $$ > /var/run/carbonella.pid
+echo $$ > "$PIDFILE"
+trap restore EXIT
+
+# Il disco del Kindle (FAT) a volte perde i permessi: rendiamo eseguibile il lettore.
+chmod +x "$BASE/bin/carbonella" 2>/dev/null
+if ! "$BASE/bin/carbonella" --versione; then
+    say "ERRORE: il lettore non parte su questo Kindle (vedi sopra), non fermo il framework"
+    exit 1
+fi
 
 # Lascia il tempo a KUAL di chiudere il suo menu.
 sleep 1
 lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
+say "fermo il framework"
 /etc/init.d/framework stop
 FRAMEWORK_STOPPED=1
 # Il framework a volte impiega qualche istante a liberare lo schermo.
 sleep 2
 
+say "avvio il lettore"
 "$BASE/bin/carbonella" --base "$BASE" "$@"
-echo "Carbonella: uscita con codice $?"
+say "il lettore è uscito con codice $?"

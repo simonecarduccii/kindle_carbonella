@@ -83,3 +83,18 @@ Dopo la prova: `make log` mostra il registro. Foto dello schermo e registro vann
 
 - Correggere quello che emerge dalla prova (v0.1.1).
 - v0.2: Home a 3 colonne con copertine generate per famiglia editoriale (dal design Figma).
+
+## Prima prova sul Kindle (16:38 UTC): non si apre
+
+Simone ha installato la v0.1.0 (`make installa` ok: "Carbonella 0.1.0 installata"), ma da KUAL
+**Carbonella non si apre**. La sessione sul Mac per leggere il registro si è fermata per il limite di
+utilizzo, quindi non abbiamo ancora `carbonella.log`.
+
+Ipotesi più probabile: fermando il framework Amazon si chiude anche KUAL, e con lui il nostro script
+(`nohup` non basta se arriva un SIGTERM al gruppo di processi). Altre possibili: `nohup` assente
+nel busybox del K4, permessi di esecuzione persi sul disco FAT, il lettore che non parte su quel kernel.
+
+**v0.1.1** (19:00 UTC) copre tutte queste ipotesi: `setsid`/`nohup`/piano C, segnali ignorati nello
+script, `chmod +x` del lettore, controllo `--versione` prima di fermare il framework, registro di avvio
+`avvio.log` e `make diagnosi` per raccogliere tutto in un file. Provato con un finto framework che
+manda SIGTERM allo script: lo script sopravvive e riavvia il framework.

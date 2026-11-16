@@ -2,6 +2,19 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Finché siamo a `0.x` tutto può cambiare.
 
+## v0.1.1 · 2026-11-16
+
+Correzioni per il primo avvio sul Kindle vero (da KUAL Carbonella non si apriva).
+
+- L'avvio si stacca da KUAL con `setsid` (o `nohup`, o un piano C) e lo script ignora i segnali mandati
+  quando si ferma l'interfaccia Amazon: prima poteva venire chiuso insieme a KUAL.
+- Prima di fermare l'interfaccia Amazon controlla che il lettore parta davvero su questo Kindle
+  (`carbonella --versione`): se no, non tocca niente e scrive l'errore nel registro.
+- Ogni pressione di "Apri Carbonella" lascia una riga in `carbonella/avvio.log`; il registro
+  `carbonella.log` ora ha l'ora di ogni passo.
+- Nuovo `make diagnosi` (`strumenti/diagnosi-kindle.sh`): raccoglie in un file tutto quello che serve per capire un problema.
+- La riga in basso mostra il capitolo giusto anche quando più capitoli stanno nello stesso file.
+
 ## v0.1.0 · 2026-11-16 · "Prima brace"
 
 Prima versione da installare e provare sul Kindle 4.

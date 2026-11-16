@@ -669,7 +669,10 @@ int main(int argc, char **argv)
             keys = argv[++i];
         else if (!strcmp(argv[i], "--tasti"))
             tasti = 1;
-        else if (!strcmp(argv[i], "--ultimo"))
+        else if (!strcmp(argv[i], "--versione")) {
+            printf("carbonella %s\n", CARBONELLA_VERSION);
+            return 0;
+        } else if (!strcmp(argv[i], "--ultimo"))
             ultimo = 1;
         else {
             usage();

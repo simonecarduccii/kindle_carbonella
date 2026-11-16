@@ -45,7 +45,7 @@ scp -O build/ciao root@192.168.15.244:/mnt/us/carbonella/ciao
 ssh root@192.168.15.244 "chmod +x /mnt/us/carbonella/ciao; /mnt/us/carbonella/ciao"
 ```
 
-Oppure tutto insieme: `make run`.
+Oppure tutto insieme: `make run` (chiede la password una volta sola e la ricorda per 10 minuti).
 
 `-O` dice a `scp` di usare il protocollo classico: i Mac recenti usano SFTP, che il server SSH del
 Kindle potrebbe non avere.
@@ -74,6 +74,7 @@ lo schermo sopra il nostro "Ciao". È normale. Per fare la foto, non toccare il 
 | Sintomo | Cosa fare |
 |---------|-----------|
 | `make: zig: No such file or directory` | Manca Zig: `brew install zig`. |
+| `Connection closed by 192.168.15.244 port 22` subito dopo la password | Il Kindle ha chiuso la connessione: password scritta male, troppo tempo per scriverla, o Kindle andato in salvaschermo. Svegliate il Kindle e rilanciate `make run`, scrivendo subito la password. |
 | `scp: Connection closed` o errore su `sftp` | Hai dimenticato `-O` in `scp`. |
 | `Permission denied` avviando il programma | La memoria `/mnt/us` potrebbe non permettere di eseguire file. Usa `/tmp`: `scp -O build/ciao root@192.168.15.244:/tmp/ciao` e poi `ssh root@192.168.15.244 "chmod +x /tmp/ciao; /tmp/ciao"` (in `/tmp` sparisce al riavvio). |
 | Il terminale dice `ok` ma lo schermo non cambia | Prova a forzare l'aggiornamento: `ssh root@192.168.15.244 "eips ''"`. Annota il risultato nel diario. |

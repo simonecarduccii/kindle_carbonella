@@ -61,3 +61,10 @@ Simone: "rimane aperta la questione raccolte, non mi fanno impazzire". Lo scaffa
 Simone ha scelto la **A**. Nel componente `Raccolte` (entrambe le varianti, Normale e Focus) lo scaffale è nascosto ma non cancellato (livello `Ripiani`), il riquadro non ha più fondo né bordo e dentro c'è una `Pila` di tre istanze di `Copertina`, sfalsate di 10px verso l'alto a destra. In ogni raccolta della Home si cambiano copertine e testi delle tre istanze (Stile, Autore, Titolo). Lo `Scaffale` ora ha dimensione fissa, perché senza i ripiani si stringeva.
 
 ![Home con raccolte a pila](img/home-raccolte-pila.png)
+
+### Ritocchi alla pila (14:46)
+
+- Simone: "rendile meno distanti, sembrano fogli di carta" → sfalsamento ridotto da 10px a **4px**: ora sembra un piccolo mucchio di libri.
+- Simone: "la selezione non deve fare il quadrato intorno ma deve scontornarlo precisamente" → nella variante Focus il riquadro nero è stato tolto. Al suo posto c'è un contorno `Selezione` da 3px che segue la sagoma a gradini della pila: è l'unione delle tre copertine allargate di 3px. In Focus la pila ha la stessa dimensione che in Normale, così quando arriva la selezione non cambia nulla.
+
+![Raccolte: normale e focus](img/raccolte-pila-focus.png)

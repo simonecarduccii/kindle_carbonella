@@ -162,7 +162,9 @@ USBNetwork trasforma il cavo USB in una scheda di rete: il computer vede il Kind
 
 ### Attivare la rete via USB
 
-1. Dalla Home premi il tasto **Tastiera** per aprire la ricerca e scrivi, confermando ogni riga:
+1. Dalla Home premi il tasto **Tastiera** per aprire la ricerca e scrivi queste tre righe, una alla volta.
+   Sul K4 non c'è un tasto Invio: per confermare, scendi con il pad a 5 direzioni sulla voce di ricerca
+   sotto il campo di testo e premi il tasto centrale.
    ```
    ;debugOn
    ~usbNetwork

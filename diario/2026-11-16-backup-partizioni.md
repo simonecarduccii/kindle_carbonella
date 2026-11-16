@@ -50,10 +50,10 @@ Velocità: circa **4 MB/s** via USB+SSH.
 
 ### Sorpresa: la partizione dei libri non è stata saltata
 
-Lo script cercava in `mount` la partizione montata su `/mnt/base-us`, ma sul K4 è montata tramite un
-dispositivo *loop* (`/dev/loop/0`), quindi ha trovato "0" e ha copiato anche `mmcblk0p4`.
+Lo script cercava in `mount` la partizione montata su `/mnt/base-us`, ma sul K4 è montata (quasi certamente) tramite un
+dispositivo *loop* (`/dev/loop/0`): lo script ha trovato "0" e ha copiato anche `mmcblk0p4`.
 Non è un danno: è un backup più completo, ci mette solo qualche minuto in più, e il checksum di p4
 può risultare diverso perché è in uso. Script corretto: se il nome non è `mmcblk0p*`, salta la
 partizione più grande.
 
-_Da completare: esito di `mmcblk0p4` e conferma della seconda copia del backup._
+_Da completare: esito di `mmcblk0p4`, conferma in `info.txt` (riga di `mount` con `/mnt/base-us`) e seconda copia del backup._

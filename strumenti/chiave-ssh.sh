@@ -28,7 +28,7 @@ else
 fi
 
 echo "2/4  Copio la chiave pubblica sul Kindle (inserisci la password di root)"
-ssh -o PreferredAuthentications=password,keyboard-interactive -o PubkeyAuthentication=no \
+ssh -o ControlPath=none -o PreferredAuthentications=password,keyboard-interactive -o PubkeyAuthentication=no \
     "root@$KINDLE_IP" \
     "mkdir -p /mnt/us/usbnet/etc && touch /mnt/us/usbnet/etc/authorized_keys && \
      grep -qF '$(cat "$KEY.pub")' /mnt/us/usbnet/etc/authorized_keys || \

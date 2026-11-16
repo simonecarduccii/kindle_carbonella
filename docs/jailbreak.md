@@ -173,7 +173,8 @@ USBNetwork trasforma il cavo USB in una scheda di rete: il computer vede il Kind
    La scorciatoia `;un` / `;uns` vale per i Kindle Touch e successivi: sul K4 di solito non fa nulla.
    **Per averla sempre attiva:** rinomina `usbnet/DISABLED_auto` in `usbnet/auto` (via SSH:
    `mv /mnt/us/usbnet/DISABLED_auto /mnt/us/usbnet/auto`). Dal riavvio successivo USBNetwork parte da
-   solo e il Kindle non appare più come disco USB. Per tornare indietro, rinominalo di nuovo
+   solo e il Kindle non appare più come disco USB. **Attacca il cavo solo dopo che il Kindle ha finito
+   di avviarsi**: se è già attaccato durante l'avvio, la rete resta bloccata. Per tornare indietro, rinominalo di nuovo
    (la documentazione del pacchetto è in `usbnet/info.txt`).
    Mentre USBNetwork è attivo, il Kindle **non** appare più come disco USB: è il segnale che ha funzionato.
 2. Collega il cavo. Sul computer apparirà una nuova interfaccia di rete (su Mac "RNDIS/Ethernet

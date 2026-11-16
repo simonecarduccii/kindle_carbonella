@@ -1,6 +1,6 @@
 # 2026-11-16 · Backup delle partizioni del Kindle
 
-**Stato:** 🟡 script pronto, da eseguire sul Mac di Simone.
+**Stato:** 🟢 partizioni di sistema salvate con checksum OK (10:34 UTC).
 
 ## Perché
 
@@ -31,6 +31,29 @@ del sistema. Se un giorno Carbonella rompesse qualcosa, questa è la copia da cu
 4. Aspetta la fine (la partizione di sistema è qualche centinaio di MB: alcuni minuti).
 5. Fai uno screenshot del Terminale e copia un'altra volta la cartella `~/kindle-backup/` (disco esterno o cloud).
 
-## Risultato
+## Risultato (prima esecuzione, 10:34 UTC)
 
-_Da compilare dopo il backup: dimensioni delle partizioni, tempi, checksum OK/diversi, screenshot._
+Simone ha lanciato lo script dal Mac. Il `fatal: destination path 'kindle_carbonella' already exists`
+in cima è solo il `git clone` ripetuto: il repository c'era già, nessun problema.
+
+| Cosa | Dimensione | Tempo | Checksum |
+|------|-----------:|------:|----------|
+| zona di avvio (`mmcblk0-avvio.img`) | 32 MB (33 554 432 byte) | – | – |
+| `mmcblk0p1` (sistema) | 350 MB (367 001 600 byte) | 87 s | OK |
+| `mmcblk0p2` (`/var/local`) | 64 MB (67 108 864 byte) | 16 s | OK |
+| `mmcblk0p3` | 32 MB (33 554 432 byte) | 8 s | OK |
+| `mmcblk0p4` (libri) | in corso | | |
+
+Velocità: circa **4 MB/s** via USB+SSH.
+
+![backup in corso](img/2026-11-16-backup-in-corso.png)
+
+### Sorpresa: la partizione dei libri non è stata saltata
+
+Lo script cercava in `mount` la partizione montata su `/mnt/base-us`, ma sul K4 è montata tramite un
+dispositivo *loop* (`/dev/loop/0`), quindi ha trovato "0" e ha copiato anche `mmcblk0p4`.
+Non è un danno: è un backup più completo, ci mette solo qualche minuto in più, e il checksum di p4
+può risultare diverso perché è in uso. Script corretto: se il nome non è `mmcblk0p*`, salta la
+partizione più grande.
+
+_Da completare: esito di `mmcblk0p4` e conferma della seconda copia del backup._

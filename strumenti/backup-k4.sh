@@ -34,8 +34,14 @@ echo "1/3  Salvo le informazioni del sistema in info.txt"
 k4 "uname -a; echo; cat /proc/partitions; echo; mount; echo; df" > "$DEST/info.txt"
 
 # Partizione dei libri, da saltare (es. mmcblk0p4).
+# Sul K4 /mnt/base-us è montata tramite un dispositivo loop (/dev/loop/0), non direttamente
+# dalla partizione: in quel caso consideriamo "dei libri" la partizione più grande.
 USERSTORE=$(k4 "mount" | awk '$3 == "/mnt/base-us" { sub(".*/", "", $1); print $1 }')
 PARTS=$(k4 "cat /proc/partitions" | awk '$4 ~ /^mmcblk0p[0-9]+$/ { print $4 }')
+case "$USERSTORE" in
+    mmcblk0p*) ;;
+    *) USERSTORE=$(k4 "cat /proc/partitions" | awk '$4 ~ /^mmcblk0p[0-9]+$/ && $3 > max { max = $3; name = $4 } END { print name }') ;;
+esac
 echo "     partizioni trovate: $(echo $PARTS)  (salto quella dei libri: ${USERSTORE:-nessuna})"
 
 echo "2/3  Copio la zona di avvio (bootloader e kernel, prima della prima partizione)"

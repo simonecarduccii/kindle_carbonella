@@ -65,3 +65,18 @@ Essendo nel componente, vale in tutte le schermate, compresa la nuova *00 · Hom
 di Simone. Nessuna istanza aveva il fondo sovrascritto a Carta, quindi non c'era altro da correggere.
 
 ![Home 3 colonne con i bordi](img/2026-11-16-copertine-bordo-carta.png)
+
+## Autore più leggibile (14:13 UTC, circa 4 minuti)
+
+Simone sul Kindle: "non si legge molto bene l'autore, più contrasto". L'autore era in grigio medio
+(Cenere, Fumo o Smog) e con peso Regular.
+
+- Lo stile `Copertina/Autore` passa da IBM Plex Mono Regular a **Medium**.
+- In tutte le 23 varianti di `Copertina` l'autore è ora **nero** sulle copertine chiare e **color carta**
+  su quelle scure (Scuro, Diagonale, Virgolette, Archi, Luna, Zigzag, e la parte alta nera di Metà e Fasce).
+- Nella home 4×3, dove l'autore era a 9 px, l'ho portato a 10 px.
+
+![Home con l'autore a contrasto pieno](img/2026-11-16-autore-contrasto-home.png)
+
+Intoppo: con la prima regola (colore in base al fondo della copertina) in Metà e Fasce l'autore era nero
+sulla fascia nera in alto; li ho corretti a mano.

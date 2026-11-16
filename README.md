@@ -28,8 +28,10 @@ direttamente sul framebuffer e-ink e si controlla con il pad a 5 direzioni e i t
 ## Roadmap
 
 - [x] Jailbreak e accesso via USBNetwork/SSH (guida: [docs/jailbreak.md](docs/jailbreak.md))
-- [ ] Toolchain di cross-compilazione ARM
-- [ ] "Hello world" sul framebuffer con FBInk
+- [ ] Backup delle partizioni ([strumenti/backup-k4.sh](strumenti/backup-k4.sh)) · script pronto, da eseguire
+- [x] Toolchain di cross-compilazione ARM (Zig, `arm-linux-musleabi`, statico)
+- [ ] "Hello world" sul framebuffer ([esperimenti/01-ciao](esperimenti/01-ciao)) · da provare sul Kindle
+- [ ] Testo con font veri tramite FBInk
 - [ ] Lettura dei tasti da `/dev/input`
 - [ ] Visualizzazione e impaginazione di un file TXT
 - [ ] Supporto EPUB (unzip + parsing XHTML essenziale)
@@ -43,6 +45,10 @@ kindle_carbonella/
 ├── diario/           # diario di sviluppo: un file per attività, con data
 ├── docs/
 │   └── jailbreak.md   # guida al jailbreak del K4 (FW 4.1.4)
+├── esperimenti/
+│   └── 01-ciao/       # primo programma nativo: "Ciao" sullo schermo e-ink
+├── strumenti/
+│   └── backup-k4.sh   # backup delle partizioni via SSH
 └── src/
     └── main.c   # punto di ingresso del lettore (segnaposto)
 ```

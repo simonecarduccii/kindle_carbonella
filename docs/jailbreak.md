@@ -215,11 +215,20 @@ lipc-set-prop -- com.lab126.powerd preventScreenSaver 1   # niente salvaschermo 
 partizioni: è il tuo paracadute se un giorno Carbonella rompesse qualcosa. Dal computer, con USBNetwork attivo:
 
 ```sh
-ssh root@192.168.15.244 "cat /proc/partitions"           # guarda i nomi delle partizioni
-ssh root@192.168.15.244 "dd if=/dev/mmcblk0p1 bs=1M" > k4-rootfs.img
+sh strumenti/backup-k4.sh
 ```
 
-Conserva `k4-rootfs.img` (e il seriale) in un posto sicuro. Non scrivere mai una partizione con `dd`
+Lo script (`strumenti/backup-k4.sh`) **legge soltanto** dal Kindle e salva in `~/kindle-backup/<data>/`:
+la zona di avvio (bootloader e kernel), ogni partizione di sistema (`mmcblk0p1` è il sistema, ecc.),
+un `info.txt` con la mappa delle partizioni e i checksum MD5 per verificare che le copie siano integre.
+Salta la partizione dei libri, che copi già come disco USB. A mano, il cuore dello script è:
+
+```sh
+ssh root@192.168.15.244 "cat /proc/partitions"                   # elenca le partizioni
+ssh root@192.168.15.244 "dd if=/dev/mmcblk0p1 bs=1048576" > mmcblk0p1.img
+```
+
+Conserva la cartella del backup (e il seriale) in un posto sicuro, meglio in due copie. Non scrivere mai una partizione con `dd`
 verso il Kindle senza aver chiesto prima: è lì che si fanno i brick veri.
 
 **Blocco aggiornamenti.** Amazon non pubblica più firmware per il K4, quindi il rischio è minimo.

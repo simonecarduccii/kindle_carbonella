@@ -27,7 +27,7 @@ direttamente sul framebuffer e-ink e si controlla con il pad a 5 direzioni e i t
 
 ## Roadmap
 
-- [ ] Jailbreak e accesso via USBNetwork/SSH
+- [x] Jailbreak e accesso via USBNetwork/SSH (guida: [docs/jailbreak.md](docs/jailbreak.md))
 - [ ] Toolchain di cross-compilazione ARM
 - [ ] "Hello world" sul framebuffer con FBInk
 - [ ] Lettura dei tasti da `/dev/input`
@@ -40,6 +40,9 @@ direttamente sul framebuffer e-ink e si controlla con il pad a 5 direzioni e i t
 ```
 kindle_carbonella/
 ├── README.md
+├── diario/           # diario di sviluppo: un file per attività, con data
+├── docs/
+│   └── jailbreak.md   # guida al jailbreak del K4 (FW 4.1.4)
 └── src/
     └── main.c   # punto di ingresso del lettore (segnaposto)
 ```

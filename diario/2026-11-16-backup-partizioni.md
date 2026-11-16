@@ -1,6 +1,6 @@
 # 2026-11-16 · Backup delle partizioni del Kindle
 
-**Stato:** 🟢 partizioni di sistema salvate con checksum OK (10:34 UTC).
+**Stato:** ✅ completato alle 10:40 UTC. Backup completo del chip (circa 1,9 GB) in `~/kindle-backup/2026-11-16/` sul Mac di Simone.
 
 ## Perché
 
@@ -31,7 +31,7 @@ del sistema. Se un giorno Carbonella rompesse qualcosa, questa è la copia da cu
 4. Aspetta la fine (la partizione di sistema è qualche centinaio di MB: alcuni minuti).
 5. Fai uno screenshot del Terminale e copia un'altra volta la cartella `~/kindle-backup/` (disco esterno o cloud).
 
-## Risultato (prima esecuzione, 10:34 UTC)
+## Risultato (10:29–10:40 UTC, circa 11 minuti)
 
 Simone ha lanciato lo script dal Mac. Il `fatal: destination path 'kindle_carbonella' already exists`
 in cima è solo il `git clone` ripetuto: il repository c'era già, nessun problema.
@@ -42,11 +42,17 @@ in cima è solo il `git clone` ripetuto: il repository c'era già, nessun proble
 | `mmcblk0p1` (sistema) | 350 MB (367 001 600 byte) | 87 s | OK |
 | `mmcblk0p2` (`/var/local`) | 64 MB (67 108 864 byte) | 16 s | OK |
 | `mmcblk0p3` | 32 MB (33 554 432 byte) | 8 s | OK |
-| `mmcblk0p4` (libri) | in corso | | |
+| `mmcblk0p4` (libri) | 1,36 GB (1 457 520 640 byte) | 329 s | diverso (normale: partizione in uso) |
 
 Velocità: circa **4 MB/s** via USB+SSH.
 
 ![backup in corso](img/2026-11-16-backup-in-corso.png)
+
+![backup finito](img/2026-11-16-backup-finito.png)
+
+Cartella finale: `info.txt`, `md5.txt`, `mmcblk0-avvio.img`, `mmcblk0p1.img` … `mmcblk0p4.img`.
+In pratica è un'immagine dell'intero chip da 2 GB, pezzo per pezzo. Gli orari nello screenshot sono
+quelli del Mac (ora italiana, UTC+1).
 
 ### Sorpresa: la partizione dei libri non è stata saltata
 
@@ -56,4 +62,8 @@ Non è un danno: è un backup più completo, ci mette solo qualche minuto in pi�
 può risultare diverso perché è in uso. Script corretto: se il nome non è `mmcblk0p*`, salta la
 partizione più grande.
 
-_Da completare: esito di `mmcblk0p4`, conferma in `info.txt` (riga di `mount` con `/mnt/base-us`) e seconda copia del backup._
+### Cose che restano
+
+- Fare una seconda copia di `~/kindle-backup/2026-11-16/` (disco esterno o cloud).
+- Confermare la causa della "sorpresa": in `info.txt`, la riga di `mount` con `/mnt/base-us`.
+- Le immagini **non** vanno nel repository: sono grandi e contengono dati personali del Kindle.

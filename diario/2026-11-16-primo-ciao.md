@@ -63,7 +63,6 @@ _Da aggiungere: la riga `framebuffer: ...` e la riga `refresh: ...` stampate nel
 ## Prossimi passi
 
 - Rendere nero su bianco il comportamento normale sul K4 (invertire di default) e ridurre il ghosting.
-
 - Usare FBInk per scrivere testo con font veri.
 - Leggere i tasti da `/dev/input/event*`.
 - Fermare l'interfaccia di Amazon mentre Carbonella è in esecuzione, così non ridisegna sopra.

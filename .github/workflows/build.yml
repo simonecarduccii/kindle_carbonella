@@ -1,0 +1,36 @@
+# Compila Carbonella per il Kindle 4 a ogni push e pull request.
+# Quando si crea un tag "vX.Y.Z" pubblica anche la release con il pacchetto zip da installare.
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Zig and Pillow
+        run: pip install ziglang==0.17.1 pillow
+      - name: Build for Kindle 4
+        run: make dist ZIG="python3 -m ziglang"
+      - name: Simulator run (screenshots)
+        run: make prova
+      - uses: actions/upload-artifact@v4
+        with:
+          name: carbonella
+          path: |
+            dist/*.zip
+            build/schermate/*.png
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          body_path: CHANGELOG.md

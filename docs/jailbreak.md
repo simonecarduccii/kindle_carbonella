@@ -162,8 +162,16 @@ USBNetwork trasforma il cavo USB in una scheda di rete: il computer vede il Kind
 
 ### Attivare la rete via USB
 
-1. Dalla Home apri la barra di ricerca (premi il tasto **Tastiera**) e scrivi `;un`, poi conferma.
-   Per spegnerla: `;uns`. Mentre USBNetwork è attivo, il Kindle **non** appare più come disco USB.
+1. Dalla Home premi il tasto **Tastiera** per aprire la ricerca e scrivi, confermando ogni riga:
+   ```
+   ;debugOn
+   ~usbNetwork
+   ;debugOff
+   ```
+   La scorciatoia `;un` / `;uns` vale per i Kindle Touch e successivi: sul K4 di solito non fa nulla.
+   In alternativa, crea un file vuoto chiamato `auto` dentro la cartella `usbnet/` del Kindle e riavvia:
+   USBNetwork partirà da solo a ogni avvio (vedi `README_FIRST.txt` del pacchetto).
+   Mentre USBNetwork è attivo, il Kindle **non** appare più come disco USB: è il segnale che ha funzionato.
 2. Collega il cavo. Sul computer apparirà una nuova interfaccia di rete (su Mac "RNDIS/Ethernet
    Gadget" o simile, su Linux `usb0`). Assegnale un IP fisso:
    - IP **`192.168.15.201`**, maschera **`255.255.255.0`**, nessun gateway.

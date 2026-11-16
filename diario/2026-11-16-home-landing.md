@@ -1,6 +1,6 @@
 # 2026-11-16 · Home di partenza e Archivio grande come un libro
 
-**Durata:** circa 12 minuti (12:44–12:52 UTC, più 4 minuti alle 12:50 per le due mensole e 8 minuti alle 12:55 per lo scaffale a tre ripiani).
+**Durata:** circa 12 minuti (12:44–12:52 UTC, più 4 minuti alle 12:50 per le due mensole e 8 minuti alle 12:55 per lo scaffale a tre ripiani, 5 minuti alle 12:59 per libri obliqui e rilegature).
 **Risultato:** la libreria a copertine di Simone diventa la schermata di partenza
 (*00 · Home (landing)* nel file Figma [Carbonella](https://www.figma.com/design/TD5USYE5DwkvWALoR821lL)),
 con l'Archivio come prima card della griglia.
@@ -61,14 +61,28 @@ livelli, libri più grandi anche messi obliqui, genereremo random".
 |---|---|
 | ![](img/2026-11-16-archivio-card.png) | ![](img/2026-11-16-ripiani.png) |
 
+### Correzione: obliqui verso sinistra e rilegature
+
+Simone: "in obliquo verso sinistra, altrimenti poggiano nel nulla, usa anche libri con rilegatura".
+Nella versione precedente i libri inclinati pendevano a destra, verso il vuoto. Ora la cima si appoggia
+al libro accanto a sinistra. Tutti i dorsi sono istanze del componente `Dorso` (con le fasce della
+rilegatura in alto e in basso, la fascia bassa resta attaccata al fondo quando il libro cambia altezza);
+i libri sdraiati hanno un filo scuro attorno. I dorsi grigio medio sparivano sul fondo dello stesso grigio:
+li ho fatti chiari o grafite.
+
+| Prima (obliqui a destra) | Segnalazione di Simone |
+|---|---|
+| ![](img/2026-11-16-archivio-card-obliqui-destra.png) | ![](img/2026-11-16-ripiano-feedback-simone.png) |
+
 Versione precedente a due mensole:
 
 ![](img/2026-11-16-archivio-card-due-mensole.png)
 
 ## Intoppi
 
-- Con la rotazione dei libri inclinati mi sono confuso sul verso (in Figma l'angolo positivo gira in
-  senso antiorario): li ho posizionati misurando il riquadro reale dopo la rotazione.
+- Con la rotazione dei libri inclinati mi sono confuso sul verso e la prima consegna li aveva a destra;
+  l'ha notato Simone. Lezione: controllare sullo screenshot dove sta la cima del libro, non fidarsi del
+  segno dell'angolo.
 - Nella prima versione c'era un nono dorso inclinato appoggiato agli altri: con la rotazione si
   sovrapponeva al libro accanto e sembrava un errore. L'ho tolto.
 

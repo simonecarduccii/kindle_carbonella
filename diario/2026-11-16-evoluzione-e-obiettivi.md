@@ -45,3 +45,13 @@ Simone: "la pagina degli obiettivi va normalizzata in base ai design precedenti"
 - Schermo di sospensione / spegnimento, batteria scarica
 - Trasferimento libri (USB / Wi‑Fi)
 - 05 · Archivio da riallineare al nuovo stile, come appena fatto con Obiettivi
+
+## Raccolte: tre proposte (14:45)
+
+Simone: "rimane aperta la questione raccolte, non mi fanno impazzire". Lo scaffale attuale in Home resta salvato in Evoluzione (snapshot 14:25, e le vecchie 07/07b come immagini). Nuova sezione Figma **"Raccolte · proposte"**, accanto alle schermate: la stessa Home con le due raccolte (Libri letti 19, Saggi brevi 8) disegnate in tre modi.
+
+- **A · Pila di copertine:** le prime tre copertine della raccolta impilate, sfalsate di 10px. Si capisce subito cosa c'è dentro; nome e numero restano nella riga sotto.
+- **B · Copertina della raccolta:** una copertina scura del sistema Copertina, con "19 LIBRI" al posto dell'autore, il nome al posto del titolo e tre miniature nella fascia illustrazione. Autore e titolo restano nella stessa posizione delle altre copertine.
+- **C · Cartella con elenco:** cartella con linguetta, numero, nome in Literata e i primi titoli in elenco con "+ altri N". È la più leggibile su e-ink, ma è anche la più diversa dalle copertine.
+
+![Proposte raccolte](img/raccolte-proposte-abc.png)

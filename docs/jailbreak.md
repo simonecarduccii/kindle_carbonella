@@ -189,8 +189,9 @@ ssh root@192.168.15.244
 
 La password di `root` del K4 è legata al numero di serie. Hai tre strade:
 
-- **Chiave SSH (consigliata):** se il README di USBNetwork lo prevede, metti la tua chiave pubblica
-  (`~/.ssh/id_ed25519.pub`) nel file `usbnet/etc/authorized_keys` sul disco del Kindle, così non serve password.
+- **Chiave SSH (consigliata):** dopo il primo accesso con password, lancia dal Mac
+  `sh strumenti/chiave-ssh.sh`: crea la chiave `~/.ssh/kindle`, la copia in `usbnet/etc/authorized_keys`
+  sul Kindle e configura `~/.ssh/config`. Da lì in poi niente password, e basta `ssh kindle`.
 - **Calcolatore della password** dal numero di serie annotato al §1 (citato dalla wiki MobileRead):
   <http://www.sven.de/kindle/>.
 - **Kindle recuperato con un'immagine di debrick:** la password di solito è `mario`.

@@ -30,7 +30,7 @@ direttamente sul framebuffer e-ink e si controlla con il pad a 5 direzioni e i t
 - [x] Jailbreak e accesso via USBNetwork/SSH (guida: [docs/jailbreak.md](docs/jailbreak.md))
 - [x] Backup delle partizioni ([strumenti/backup-k4.sh](strumenti/backup-k4.sh))
 - [x] Toolchain di cross-compilazione ARM (Zig, `arm-linux-musleabi`, statico)
-- [ ] "Hello world" sul framebuffer ([esperimenti/01-ciao](esperimenti/01-ciao)) · da provare sul Kindle
+- [x] "Hello world" sul framebuffer ([esperimenti/01-ciao](esperimenti/01-ciao)) · colori da invertire
 - [ ] Testo con font veri tramite FBInk
 - [ ] Lettura dei tasti da `/dev/input`
 - [ ] Visualizzazione e impaginazione di un file TXT
@@ -48,7 +48,8 @@ kindle_carbonella/
 ├── esperimenti/
 │   └── 01-ciao/       # primo programma nativo: "Ciao" sullo schermo e-ink
 ├── strumenti/
-│   └── backup-k4.sh   # backup delle partizioni via SSH
+│   ├── backup-k4.sh   # backup delle partizioni via SSH
+│   └── chiave-ssh.sh  # accesso SSH senza password
 └── src/
     └── main.c   # punto di ingresso del lettore (segnaposto)
 ```

@@ -1,6 +1,6 @@
 # 2026-11-16 · Il primo "Ciao" di Carbonella
 
-**Stato:** 🟡 programma compilato e verificato al computer, da provare sul Kindle.
+**Stato:** ✅ funziona sul Kindle (11:23 UTC). Da sistemare: i colori sono invertiti.
 
 ## Obiettivo
 
@@ -40,12 +40,29 @@ scp -O build/ciao root@192.168.15.244:/mnt/us/carbonella/ciao
 ssh root@192.168.15.244 "chmod +x /mnt/us/carbonella/ciao; /mnt/us/carbonella/ciao"
 ```
 
-## Risultato
+## Risultato (11:02–11:23 UTC)
 
-_Da compilare: la riga `framebuffer: ...` stampata dal programma, quale refresh ha funzionato,
-una foto dello schermo del Kindle (in `img/2026-11-16-ciao-kindle.jpg`)._
+1. Primo `make run`: compilazione OK sul Mac, ma il Kindle ha chiuso la connessione SSH subito dopo
+   la richiesta della password (`Connection closed by 192.168.15.244 port 22`). Probabile password
+   scritta troppo tardi o Kindle in salvaschermo. Corretto il `Makefile` per riusare una sola
+   connessione (la password si chiede una volta).
+2. Secondo tentativo: **"Ciao" e "Carbonella" compaiono sullo schermo e-ink.** 🎉
+
+![il primo Ciao sul Kindle](img/2026-11-16-ciao-kindle.jpg)
+
+Cosa ci dice la foto:
+
+- **Il refresh funziona**: il disegno arriva sullo schermo senza toccare altro.
+- **I colori sono al contrario**: scritte bianche su fondo scuro. Sul K4 nel framebuffer 0 = bianco
+  e 255 = nero, l'opposto di quello che avevamo supposto. Con `ciao -i` dovrebbe uscire nero su bianco.
+- **Si vede in trasparenza la pagina di prima** (ghosting): l'aggiornamento non ha fatto il
+  "lampeggio" completo che pulisce l'e-ink. Da capire se serve un altro tipo di refresh.
+
+_Da aggiungere: la riga `framebuffer: ...` e la riga `refresh: ...` stampate nel Terminale._
 
 ## Prossimi passi
+
+- Rendere nero su bianco il comportamento normale sul K4 (invertire di default) e ridurre il ghosting.
 
 - Usare FBInk per scrivere testo con font veri.
 - Leggere i tasti da `/dev/input/event*`.

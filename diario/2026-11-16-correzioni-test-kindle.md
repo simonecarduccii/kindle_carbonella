@@ -90,3 +90,29 @@ Nella home 4×3, dove le copertine sono più piccole (125 px), l'autore è a 11 
 
 Nota: i nomi lunghi ora vanno su due righe ("ALESSANDRO / MANZONI") e su alcune copertine, come Punti,
 la seconda riga tocca il disegno.
+
+## Regola: l'autore può andare a capo e non deve mai toccare il disegno (14:18 UTC, circa 8 minuti)
+
+Simone: "alcuni nomi autori vanno a capo, ricorda questa cosa nei design, fai in modo che non vadano sopra".
+
+**Regola di design (vale per tutte le copertine, anche quelle future):** i primi **56 px** in alto della
+copertina sono riservati all'autore, che deve poter stare su due righe (13 px, interlinea 120%). Lì
+possono esserci solo fondi pieni (Metà, Fasce, Cornice), mai il disegno. Il disegno sta tra 56 e
+circa 152 px, sopra il titolo.
+
+Cosa ho cambiato nelle 23 varianti di `Copertina`:
+
+- **Spostati in basso:** Righe, Punti, Scacchi, Onde, Griglia, Luna, Zigzag, Gradini, Virgolette e le
+  fasce della Diagonale. Dove il motivo finiva sul titolo ho nascosto l'ultima fila o accorciato le linee.
+- **Rimpiccioliti** per stare nello spazio: Cerchi (89%), Quadrati (87%), Montagne (95%).
+- **Colonne:** la colonna più alta parte da 56 px. **Pioggia:** tolte le gocce nella zona dell'autore.
+- **Archi:** l'autore è stretto a 72 px, così va a capo prima degli archi sul lato destro.
+- Sole, Metà, Fasce, Cornice e le tinte piatte non avevano bisogno di modifiche.
+
+Per controllare ho messo tutte le varianti con "GIUSEPPE TOMASI DI LAMPEDUSA" in un foglio di prova
+(poi cancellato). Nella prima prova anche la Diagonale aveva l'autore stretto, ma spezzava le parole
+("LAMPED / USA"): ho spostato le fasce invece di stringere il testo.
+
+| Prima prova | Versione finale |
+|---|---|
+| ![](img/2026-11-16-autori-lunghi-prima-bozza.png) | ![](img/2026-11-16-autori-lunghi-prova.png) |

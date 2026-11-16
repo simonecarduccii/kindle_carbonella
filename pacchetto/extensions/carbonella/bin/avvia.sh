@@ -8,11 +8,12 @@
 # Ogni avvio lascia una riga in /mnt/us/carbonella/avvio.log: così sappiamo se KUAL ci ha chiamati.
 
 BASE=/mnt/us/carbonella
-echo "$(date '+%Y-%m-%d %H:%M:%S') avvia.sh $* (utente $(id -u))" >> "$BASE/avvio.log"
+echo "$(date '+%Y-%m-%d %H:%M:%S') avvia.sh $* " >> "$BASE/avvio.log"
 
-if command -v setsid >/dev/null 2>&1; then
+# Il BusyBox del K4 (1.7.2) non ha nohup e il suo sh non conosce "command -v": usiamo "which".
+if which setsid >/dev/null 2>&1; then
     setsid /bin/sh "$BASE/carbonella.sh" "$@" </dev/null >/dev/null 2>&1 &
-elif command -v nohup >/dev/null 2>&1; then
+elif which nohup >/dev/null 2>&1; then
     nohup /bin/sh "$BASE/carbonella.sh" "$@" </dev/null >/dev/null 2>&1 &
 else
     ( trap '' HUP TERM; exec /bin/sh "$BASE/carbonella.sh" "$@" ) </dev/null >/dev/null 2>&1 &

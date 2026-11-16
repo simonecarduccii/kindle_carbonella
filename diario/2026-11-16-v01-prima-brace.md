@@ -98,3 +98,14 @@ nel busybox del K4, permessi di esecuzione persi sul disco FAT, il lettore che n
 script, `chmod +x` del lettore, controllo `--versione` prima di fermare il framework, registro di avvio
 `avvio.log` e `make diagnosi` per raccogliere tutto in un file. Provato con un finto framework che
 manda SIGTERM allo script: lo script sopravvive e riavvia il framework.
+
+### Causa trovata (19:05 UTC)
+
+La diagnosi sul Kindle (via SSH dal Mac) dice: **il BusyBox del K4 è la versione 1.7.2 e non ha `nohup`**.
+Il nostro `avvia.sh` della v0.1.0 lanciava `nohup ...`: falliva subito, prima ancora di creare il
+registro (infatti `carbonella.log` non esiste). Il lettore invece funziona: `carbonella --help` gira sul K4
+(kernel 2.6.31-rt11-lab126, Cortex-A8 con NEON/VFPv3, scheda MX50 "Yoshi").
+
+Altre cose imparate: il `grep` di quel BusyBox non conosce `-E`; le altre estensioni KUAL scrivono
+l'azione come `./bin/...`. La v0.1.1 usa `which` invece di `command -v`, l'azione `./bin/avvia.sh`, e
+ha una via di avvio che funziona con la sola shell.

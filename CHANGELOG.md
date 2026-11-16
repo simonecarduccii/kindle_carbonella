@@ -6,7 +6,9 @@ Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Finché siamo a `0.x
 
 Correzioni per il primo avvio sul Kindle vero (da KUAL Carbonella non si apriva).
 
-- L'avvio si stacca da KUAL con `setsid` (o `nohup`, o un piano C) e lo script ignora i segnali mandati
+- **Causa trovata**: il BusyBox del K4 (1.7.2) non ha `nohup`, quindi lo script di KUAL falliva subito
+  senza lasciare traccia. Ora l'avvio usa `setsid` se c'è, altrimenti un metodo che funziona con la sola shell.
+- L'avvio si stacca da KUAL e lo script ignora i segnali mandati
   quando si ferma l'interfaccia Amazon: prima poteva venire chiuso insieme a KUAL.
 - Prima di fermare l'interfaccia Amazon controlla che il lettore parta davvero su questo Kindle
   (`carbonella --versione`): se no, non tocca niente e scrive l'errore nel registro.

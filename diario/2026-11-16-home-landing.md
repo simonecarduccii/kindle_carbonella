@@ -1,6 +1,6 @@
 # 2026-11-16 · Home di partenza e Archivio grande come un libro
 
-**Durata:** circa 12 minuti (12:44–12:52 UTC, più 4 minuti alle 12:50 per lo scaffale).
+**Durata:** circa 12 minuti (12:44–12:52 UTC, più 4 minuti alle 12:50 per le due mensole e 8 minuti alle 12:55 per lo scaffale a tre ripiani).
 **Risultato:** la libreria a copertine di Simone diventa la schermata di partenza
 (*00 · Home (landing)* nel file Figma [Carbonella](https://www.figma.com/design/TD5USYE5DwkvWALoR821lL)),
 con l'Archivio come prima card della griglia.
@@ -41,8 +41,34 @@ bordo bianco, due ripiani, dieci libri sopra e cinque sotto.
 
 ![Versione con una mensola sola](img/2026-11-16-archivio-card-mensola-singola.png)
 
+## Terza versione: scaffale a tre ripiani
+
+Simone ha disegnato uno schizzo in Figma (a sinistra nell'immagine) e ha chiesto: "rendilo così su tre
+livelli, libri più grandi anche messi obliqui, genereremo random".
+
+![Schizzo di Simone](img/2026-11-16-scaffale-schizzo-simone.png)
+
+- La copertina ora **è** lo scaffale: fondo grigio, bordo nero, tre ripiani con mensole bianche. Niente
+  titolo sulla copertina; sotto restano `Libri letti` e `14 libri` (come aveva già impostato Simone).
+- Libri più grandi (alti 46–60 px su ripiani da 64), alcuni inclinati che si appoggiano al vicino e
+  qualche pila di libri sdraiati.
+- Per generarli a caso ho creato il componente **`Ripiano`** con cinque varianti (`Disposizione = A…E`):
+  pieno, con pila, con un buco in mezzo, mezzo vuoto, con pila bassa. Nella card sono A, B e D (l'ultimo
+  ripiano mezzo vuoto, da riempire). Per cambiare basta scegliere un'altra variante su ciascun ripiano;
+  nel lettore in C si sceglierà una disposizione a caso (magari fissata dal numero di libri letti).
+
+| Card (normale / selezionata) | Le cinque disposizioni del `Ripiano` |
+|---|---|
+| ![](img/2026-11-16-archivio-card.png) | ![](img/2026-11-16-ripiani.png) |
+
+Versione precedente a due mensole:
+
+![](img/2026-11-16-archivio-card-due-mensole.png)
+
 ## Intoppi
 
+- Con la rotazione dei libri inclinati mi sono confuso sul verso (in Figma l'angolo positivo gira in
+  senso antiorario): li ho posizionati misurando il riquadro reale dopo la rotazione.
 - Nella prima versione c'era un nono dorso inclinato appoggiato agli altri: con la rotazione si
   sovrapponeva al libro accanto e sembrava un errore. L'ho tolto.
 

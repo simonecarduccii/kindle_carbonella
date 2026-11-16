@@ -1,6 +1,6 @@
 # 2026-11-16 · Home di partenza e Archivio grande come un libro
 
-**Durata:** circa 8 minuti (12:44–12:52 UTC).
+**Durata:** circa 12 minuti (12:44–12:52 UTC, più 4 minuti alle 12:50 per lo scaffale).
 **Risultato:** la libreria a copertine di Simone diventa la schermata di partenza
 (*00 · Home (landing)* nel file Figma [Carbonella](https://www.figma.com/design/TD5USYE5DwkvWALoR821lL)),
 con l'Archivio come prima card della griglia.
@@ -20,8 +20,9 @@ con l'Archivio come prima card della griglia.
   cornice con 4 px di margine, "copertina" da 160×232 e sotto la riga di informazioni nello stesso
   carattere (IBM Plex Mono 12). Le card non selezionate sono attenuate come i libri; la selezione è la
   stessa cornice nera di 3 px.
-- La copertina dell'Archivio è nera, con in alto "LIBRI LETTI", al centro una mensola con otto dorsi di
-  grigi diversi e in basso il titolo *Archivio* con il filetto, come le copertine dei libri. Sotto:
+- La copertina dell'Archivio è nera, con in alto "LIBRI LETTI", al centro un piccolo scaffale con
+  **due mensole** (quella in alto piena, quella in basso a metà, che si riempie man mano) e in basso il
+  titolo *Archivio* con il filetto, come le copertine dei libri. Sotto:
   `4.212 pagine` a sinistra e `14 libri` a destra.
 - Proprietà del componente: `Nome`, `Pagine`, `Dettagli`, `Stato`. Si può riusare per qualunque
   raccolta (basta cambiare il nome).
@@ -31,6 +32,14 @@ con l'Archivio come prima card della griglia.
 | Home | Componente (normale / selezionato) |
 |---|---|
 | ![](img/2026-11-16-home-landing.png) | ![](img/2026-11-16-archivio-card.png) |
+
+## Seconda versione: due mensole
+
+Simone: "non mi piace, fallo come fossero due mensole di uno scaffale". La prima versione aveva una sola
+mensola con i dorsi alti, sembrava più un grafico a barre che una libreria. Ora c'è il mobile intero:
+bordo bianco, due ripiani, dieci libri sopra e cinque sotto.
+
+![Versione con una mensola sola](img/2026-11-16-archivio-card-mensola-singola.png)
 
 ## Intoppi
 

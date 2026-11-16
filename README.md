@@ -33,6 +33,7 @@ direttamente sul framebuffer e-ink e si controlla con il pad a 5 direzioni e i t
 - [ ] Lettura dei tasti da `/dev/input`
 - [ ] Visualizzazione e impaginazione di un file TXT
 - [ ] Supporto EPUB (unzip + parsing XHTML essenziale)
+- [ ] Pagine dell'edizione cartacea: "pag. 142 di 384" (specifica: [docs/pagine-cartacee.md](docs/pagine-cartacee.md))
 - [ ] Libreria: elenco dei libri e ultima pagina letta
 
 ## Struttura

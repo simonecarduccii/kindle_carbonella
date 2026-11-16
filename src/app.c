@@ -294,10 +294,15 @@ static int load_chapter(App *a, int spine, int which_page, uint32_t pos)
 
 static const char *chapter_title(App *a)
 {
+    /* several entries can point into the same file (anchors): take the first one of this file,
+     * otherwise the last one before it */
     const char *best = NULL;
-    for (int i = 0; i < a->book->ntoc; i++)
-        if (a->book->toc[i].spine <= a->spine)
+    for (int i = 0; i < a->book->ntoc; i++) {
+        if (a->book->toc[i].spine == a->spine)
+            return a->book->toc[i].title;
+        if (a->book->toc[i].spine < a->spine)
             best = a->book->toc[i].title;
+    }
     return best ? best : a->book->title;
 }
 
@@ -362,7 +367,8 @@ static void show_toc(App *a)
     for (int i = 0; i < n; i++) {
         if (a->book->ntoc > 0) {
             items[i].title = a->book->toc[i].title;
-            if (a->book->toc[i].spine <= a->spine)
+            if (a->book->toc[i].spine < a->spine || (a->book->toc[i].spine == a->spine &&
+                                                       (i == 0 || a->book->toc[i - 1].spine != a->spine)))
                 sel = i;
         } else {
             labels[i] = xmalloc(32);

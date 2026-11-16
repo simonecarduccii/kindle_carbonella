@@ -1,6 +1,6 @@
 # 2026-11-16 · Home di partenza e Archivio grande come un libro
 
-**Durata:** circa 12 minuti (12:44–12:52 UTC, più 4 minuti alle 12:50 per le due mensole e 8 minuti alle 12:55 per lo scaffale a tre ripiani, 5 minuti alle 12:59 per libri obliqui e rilegature).
+**Durata:** circa 12 minuti (12:44–12:52 UTC, più 4 minuti alle 12:50 per le due mensole e 8 minuti alle 12:55 per lo scaffale a tre ripiani, 5 minuti alle 12:59 per libri obliqui e rilegature, 8 minuti alle 13:07 per uniformare i ripiani).
 **Risultato:** la libreria a copertine di Simone diventa la schermata di partenza
 (*00 · Home (landing)* nel file Figma [Carbonella](https://www.figma.com/design/TD5USYE5DwkvWALoR821lL)),
 con l'Archivio come prima card della griglia.
@@ -73,6 +73,23 @@ li ho fatti chiari o grafite.
 | Prima (obliqui a destra) | Segnalazione di Simone |
 |---|---|
 | ![](img/2026-11-16-archivio-card-obliqui-destra.png) | ![](img/2026-11-16-ripiano-feedback-simone.png) |
+
+### Ripiani uniformati al riferimento di Simone
+
+Simone ha ridisegnato a mano il ripiano A (dorsi più alti, scala 1,12, filo bianco attorno ai dorsi,
+fasce nere sui dorsi chiari, mensola nera, fondo grigio chiaro) e ha chiesto: "scala tutti i ripiani e
+rendili proporzionati a questo, anche stessi colori".
+
+![Riferimento di Simone](img/2026-11-16-ripiano-riferimento-simone.png)
+
+- B, C, D, E hanno ora la stessa struttura di A: 154×73, una fila di libri in auto layout (spazio 2 px)
+  appoggiata su una mensola nera da 6 px.
+- Ogni dorso è stato scalato di 1,12 come in A (fasce e bordi compresi), con il filo bianco da 1,12 px.
+- Le pile di libri sdraiati sono un piccolo gruppo verticale nella fila, alternando grigio chiaro e nero.
+- Il buco in C è un elemento "Spazio" vuoto, così si può allargare o togliere.
+- In B, con i libri più grandi, non c'era più posto: ho tolto due dorsi.
+
+Nella card, la variante normale mostra tre volte il ripiano A (scelta di Simone), quella selezionata A, B e D.
 
 Versione precedente a due mensole:
 

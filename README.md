@@ -27,7 +27,7 @@ direttamente sul framebuffer e-ink e si controlla con il pad a 5 direzioni e i t
 
 ## Roadmap
 
-- [ ] Jailbreak e accesso via USBNetwork/SSH (guida: [docs/jailbreak.md](docs/jailbreak.md))
+- [x] Jailbreak e accesso via USBNetwork/SSH (guida: [docs/jailbreak.md](docs/jailbreak.md))
 - [ ] Toolchain di cross-compilazione ARM
 - [ ] "Hello world" sul framebuffer con FBInk
 - [ ] Lettura dei tasti da `/dev/input`

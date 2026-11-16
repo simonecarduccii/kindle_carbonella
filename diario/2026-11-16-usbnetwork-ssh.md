@@ -1,6 +1,6 @@
 # 2026-11-16 · USBNetwork: la rete via USB non parte
 
-**Stato:** rete USB funzionante, SSH arriva alla richiesta della password (10:06 UTC). Manca la password di root.
+**Stato:** ✅ risolto. Accesso SSH come root riuscito alle 10:07 UTC.
 
 ## Problema
 
@@ -45,3 +45,17 @@ Simone è bloccato al passo "Attivare la rete via USB" della guida (`docs/jailbr
 Da provare in ordine: password vuota, `mario`. Se non funzionano, la password del K4 si ricava dal
 numero di serie (calcolatore citato dalla wiki MobileRead: <http://www.sven.de/kindle/>).
 A lungo termine meglio una chiave SSH in `usbnet/etc/authorized_keys`, così non serve password.
+
+## Accesso root riuscito (10:07 UTC)
+
+Simone è entrato come `root` con una delle password di default (vuota o `mario`), senza bisogno del seriale.
+Il Kindle mostra l'avviso "Rootfs is mounted read-only": è normale, si usa `mntroot rw` solo quando
+serve scrivere nel sistema, e poi `mntroot ro`.
+
+![login root riuscito](img/2026-11-16-ssh-root-k4.png)
+
+**Traguardo:** jailbreak + USBNetwork + SSH completati. Tempo totale del troubleshooting: circa 12 minuti
+(09:55–10:07 UTC).
+
+**Prossimo passo consigliato:** il backup delle partizioni (`docs/jailbreak.md`, §7), prima di iniziare a
+sviluppare Carbonella.

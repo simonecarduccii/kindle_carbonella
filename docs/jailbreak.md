@@ -171,8 +171,11 @@ USBNetwork trasforma il cavo USB in una scheda di rete: il computer vede il Kind
    ;debugOff
    ```
    La scorciatoia `;un` / `;uns` vale per i Kindle Touch e successivi: sul K4 di solito non fa nulla.
-   In alternativa, crea un file vuoto chiamato `auto` dentro la cartella `usbnet/` del Kindle e riavvia:
-   USBNetwork partirà da solo a ogni avvio (vedi `README_FIRST.txt` del pacchetto).
+   **Per averla sempre attiva:** rinomina `usbnet/DISABLED_auto` in `usbnet/auto` (via SSH:
+   `mv /mnt/us/usbnet/DISABLED_auto /mnt/us/usbnet/auto`). Dal riavvio successivo USBNetwork parte da
+   solo e il Kindle non appare più come disco USB. **Attacca il cavo solo dopo che il Kindle ha finito
+   di avviarsi**: se è già attaccato durante l'avvio, la rete resta bloccata. Per tornare indietro, rinominalo di nuovo
+   (la documentazione del pacchetto è in `usbnet/info.txt`).
    Mentre USBNetwork è attivo, il Kindle **non** appare più come disco USB: è il segnale che ha funzionato.
 2. Collega il cavo. Sul computer apparirà una nuova interfaccia di rete (su Mac "RNDIS/Ethernet
    Gadget" o simile, su Linux `usb0`). Assegnale un IP fisso:
@@ -189,8 +192,9 @@ ssh root@192.168.15.244
 
 La password di `root` del K4 è legata al numero di serie. Hai tre strade:
 
-- **Chiave SSH (consigliata):** se il README di USBNetwork lo prevede, metti la tua chiave pubblica
-  (`~/.ssh/id_ed25519.pub`) nel file `usbnet/etc/authorized_keys` sul disco del Kindle, così non serve password.
+- **Chiave SSH (consigliata):** dopo il primo accesso con password, lancia dal Mac
+  `sh strumenti/chiave-ssh.sh`: crea la chiave RSA `~/.ssh/kindle_rsa` (il Dropbear 2015 del K4 non accetta ed25519), la copia in `usbnet/etc/authorized_keys`
+  sul Kindle e configura `~/.ssh/config`. Da lì in poi niente password, e basta `ssh kindle`.
 - **Calcolatore della password** dal numero di serie annotato al §1 (citato dalla wiki MobileRead):
   <http://www.sven.de/kindle/>.
 - **Kindle recuperato con un'immagine di debrick:** la password di solito è `mario`.
@@ -215,11 +219,20 @@ lipc-set-prop -- com.lab126.powerd preventScreenSaver 1   # niente salvaschermo 
 partizioni: è il tuo paracadute se un giorno Carbonella rompesse qualcosa. Dal computer, con USBNetwork attivo:
 
 ```sh
-ssh root@192.168.15.244 "cat /proc/partitions"           # guarda i nomi delle partizioni
-ssh root@192.168.15.244 "dd if=/dev/mmcblk0p1 bs=1M" > k4-rootfs.img
+sh strumenti/backup-k4.sh
 ```
 
-Conserva `k4-rootfs.img` (e il seriale) in un posto sicuro. Non scrivere mai una partizione con `dd`
+Lo script (`strumenti/backup-k4.sh`) **legge soltanto** dal Kindle e salva in `~/kindle-backup/<data>/`:
+la zona di avvio (bootloader e kernel), ogni partizione di sistema (`mmcblk0p1` è il sistema, ecc.),
+un `info.txt` con la mappa delle partizioni e i checksum MD5 per verificare che le copie siano integre.
+Salta la partizione dei libri, che copi già come disco USB. A mano, il cuore dello script è:
+
+```sh
+ssh root@192.168.15.244 "cat /proc/partitions"                   # elenca le partizioni
+ssh root@192.168.15.244 "dd if=/dev/mmcblk0p1 bs=1048576" > mmcblk0p1.img
+```
+
+Conserva la cartella del backup (e il seriale) in un posto sicuro, meglio in due copie. Non scrivere mai una partizione con `dd`
 verso il Kindle senza aver chiesto prima: è lì che si fanno i brick veri.
 
 **Blocco aggiornamenti.** Amazon non pubblica più firmware per il K4, quindi il rischio è minimo.

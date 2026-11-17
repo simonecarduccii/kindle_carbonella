@@ -74,7 +74,7 @@ carbonella tutto ciò che è diventato superfluo", "ti ho aggiunto anche 4 refer
 - Ogni versione ha il suo pacchetto `carbonella-vX.Y.Z.zip` nella cartella *rilasci* del progetto (dalla
   0.1.0 alla 1.1.0). Gli zip di 0.6.1, 0.6.2, 0.6.3 e 1.0.2 non erano mai stati salvati e sono stati
   ricostruiti dai loro commit il 17 nov.
-- Ogni versione ha anche un'etichetta git `vX.Y.Z` sul commit che la porta.
+- Ogni versione avrà anche un'etichetta git `vX.Y.Z` sul commit che la porta (preparate il 17 nov, da pubblicare dal Mac).
 - Dal 17 nov 12:02 le versioni le fa un solo thread, "Rilasciare e documentare Carbonella", e solo quando
   Simone lo chiede. Gli altri thread (design, front end, back end, debug) gli passano i commit pronti.
 

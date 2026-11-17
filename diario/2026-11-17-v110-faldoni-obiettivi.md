@@ -46,6 +46,10 @@ In tutto circa 40 minuti, contando le due parti del lavoro.
 
 - Pacchetto `carbonella-v1.1.0.zip` nella cartella *rilasci* del progetto, insieme a tutti i precedenti.
   Nello stesso giro: ricostruiti gli zip mai salvati di 0.6.1, 0.6.2, 0.6.3 e 1.0.2, aggiunte le righe
-  1.0.1–1.0.6 in [EVOLUZIONE](EVOLUZIONE.md) ed etichette git `vX.Y.Z` per tutte le versioni.
+  1.0.1–1.0.6 in [EVOLUZIONE](EVOLUZIONE.md), nuovo passo in Figma.
 - Figma, pagina Evoluzione: nuovi passi per v0.6.2/0.6.3, v1.0.6 e v1.1.0.
-- Installazione sul Kindle: la fa il front end.
+- **Sul Kindle (12:37 UTC)**: installata dal front end con `make installa` e riavviata. Il log dice "Carbonella
+  1.1.0", framebuffer 600×800, tastiera e 5-way presi, 13 caratteri caricati, 9 libri dalla cache in 19 ms,
+  refresh completo 54 ms, nessun errore. Non c'è una foto del Kindle: le schermate qui sopra sono del simulatore.
+- Etichette git: preparate e verificate (ogni SHA ha in `carbonella.h` la sua versione), ma il push dei tag è
+  bloccato dai container cloud. Vanno pubblicate dal Mac con il via libera di Simone.

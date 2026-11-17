@@ -1,6 +1,6 @@
 # Evoluzione di Carbonella
 
-Il riassunto di tutto il percorso, dal Kindle appena sbloccato alla v0.5.2. I dettagli di ogni passo
+Il riassunto di tutto il percorso, dal Kindle appena sbloccato alla v0.6.1. I dettagli di ogni passo
 sono nei file del diario linkati qui sotto. Le ore sono in UTC e vengono dai commit.
 
 La stessa evoluzione è anche in Figma, nella pagina **Evoluzione**: lì ci sono le copie congelate delle
@@ -22,8 +22,9 @@ schermate di ogni passo.
 | 17 nov 00:41–00:50 | **v0.3.0 / v0.3.1**: bianco puro, menu sopra il testo, Impostazioni, Home 7× più veloce | [v03-appunti-di-simone](2026-11-17-v03-appunti-di-simone.md) |
 | 17 nov 01:10–01:13 | **v0.4.0 / v0.4.1 "I menu di Figma"**: testi parola per parola, segnalibri, Cerca, Vai a pagina, raccolte | [v04-menu-di-figma](2026-11-17-v04-menu-di-figma.md) |
 | 17 nov 01:34–01:35 | **v0.5.0 / v0.5.1 "Obiettivi"**: schermata Obiettivi, avviso obiettivo raggiunto, popup raccolte, Archivia libro | [v05-obiettivi](2026-11-17-v05-obiettivi.md) |
-| 17 nov 09:50 | **v0.5.3**: ritocchi di Simone (barra di lettura nera, Obiettivi senza piè di pagina) | [v05-obiettivi](2026-11-17-v05-obiettivi.md#v053-0950-utc-ritocchi-di-simone) |
 | 17 nov 01:54 | **v0.5.2**: lo standby con la copertina funziona davvero (il tasto di accensione veniva ignorato) | [v05-obiettivi](2026-11-17-v05-obiettivi.md#v052-lo-standby-non-funzionava) |
+| 17 nov 09:50 | **v0.5.3**: ritocchi di Simone (barra di lettura nera, Obiettivi senza piè di pagina) | [v05-obiettivi](2026-11-17-v05-obiettivi.md#v053-0950-utc-ritocchi-di-simone) |
+| 17 nov 10:10 | **v0.6.0 / v0.6.1 "Copertine dagli editori"**: copertine dai 5 modelli di Simone, Standby automatico dopo, NUOVO, selezione quadrata, linguetta | [v06-copertine-editori](2026-11-17-v06-copertine-editori.md) |
 
 ## Cosa abbiamo imparato
 
@@ -33,7 +34,8 @@ schermate di ogni passo.
   modifica i frame anche mentre lavoro, quindi vanno riletti subito prima di ogni installazione.
 - **E-ink**: sfondo bianco puro, niente grigi chiari, linee di almeno 2 px, testo a 18 px.
 - **Sistema del Kindle**: BusyBox 1.7.2 è vecchio (niente nohup, niente grep -E). `lipc-wait-event`
-  ignora SIGTERM. Con `preventScreenSaver` a 1, powerd ignora il tasto di accensione.
+  ignora SIGTERM. Con `preventScreenSaver` a 1, powerd ignora il tasto di accensione. powerd del K4 non
+  ha una proprietà `powerButton`: le proprietà vere si leggono con `lipc-probe -v com.lab126.powerd`.
 
 ## Salvataggio del 17 nov, 09:40 UTC
 
@@ -54,7 +56,7 @@ carbonella tutto ciò che è diventato superfluo", "ti ho aggiunto anche 4 refer
   - il testo sparso "Conteggio";
   - un doppione di "Lessico famigliare · v2".
 - **Nella pagina Carbonella restano** Componenti, Schermate, Copertine e la sezione della versione sul
-  Kindle (v0.5.1).
+  Kindle (allora v0.5.1; ora v0.6.1, la v0.5.3 è in *Superati*).
 - **4 nuove reference di copertine** (Adelphi 7, Einaudi 8, Feltrinelli 6, Sellerio 7): spostate nelle
   righe "Altre reference per editore" della sezione Copertine. Restano il riferimento per le copertine
   generate.

@@ -350,7 +350,7 @@ typedef struct {
 } Item;
 
 typedef struct {
-    char *title, *author, *language;
+    char *title, *author, *language, *publisher;
     Item *items;
     int nitems;
     char **spine_ids;
@@ -363,6 +363,7 @@ static void opf_free(Opf *o)
     free(o->title);
     free(o->author);
     free(o->language);
+    free(o->publisher);
     for (int i = 0; i < o->nitems; i++) {
         free(o->items[i].id);
         free(o->items[i].href);
@@ -433,6 +434,8 @@ static int parse_opf(const char *data, size_t len, Opf *o, int meta_only)
                 o->author = who;
             else
                 free(who);
+        } else if (name_is(&t, "publisher") && !o->publisher && !t.self_close) {
+            o->publisher = element_text(&x, "publisher");
         } else if (name_is(&t, "language") && !o->language && !t.self_close) {
             o->language = element_text(&x, "language");
         } else if (meta_only && name_is(&t, "manifest")) {
@@ -514,13 +517,14 @@ static int ends_with(const char *s, const char *suffix)
     return a >= b && strcasecmp(s + a - b, suffix) == 0;
 }
 
-int book_peek_meta(const char *path, char **title, char **author, long long *text_bytes)
+int book_peek_meta(const char *path, char **title, char **author, char **publisher, long long *text_bytes)
 {
-    *title = *author = NULL;
+    *title = *author = *publisher = NULL;
     *text_bytes = 0;
     if (ends_with(path, ".txt")) {
         *title = base_name(path);
         *author = xstrdup("");
+        *publisher = xstrdup("");
         struct stat st;
         if (stat(path, &st) == 0)
             *text_bytes = st.st_size;
@@ -539,6 +543,7 @@ int book_peek_meta(const char *path, char **title, char **author, long long *tex
         parse_opf(data, len, &o, 1);
         *title = o.title && *o.title ? xstrdup(o.title) : base_name(path);
         *author = xstrdup(o.author ? o.author : "");
+        *publisher = xstrdup(o.publisher ? o.publisher : "");
         opf_free(&o);
         rc = 0;
     }

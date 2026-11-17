@@ -18,7 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define CARBONELLA_VERSION "0.5.3"
+#define CARBONELLA_VERSION "0.6.0"
 
 /* ------------------------------------------------------------------ util */
 
@@ -139,6 +139,9 @@ typedef enum {
     FACE_MONO = 4, FACE_MONO_MEDIUM = 5,                                   /* IBM Plex Mono: interface */
     FACE_SANS = 6, FACE_SANS_MEDIUM = 7,                                   /* IBM Plex Sans: menus */
     FACE_SEMIBOLD = 8,                                                     /* Literata: cover titles */
+    FACE_MONO_BOLD = 9,                                                    /* covers (Einaudi, Feltrinelli) */
+    FACE_BODONI = 10,                                                      /* Libre Bodoni: Sellerio cover */
+    FACE_BASK = 11, FACE_BASK_ITALIC = 12,                                 /* Libre Baskerville: covers */
     FACE_COUNT
 } Face;
 
@@ -173,9 +176,9 @@ void ui_group_label(Canvas *c, int x, float top, const char *label);
 /* Wrapped text, at most max_lines (the last one ends with "…"). Returns the number of lines. */
 int ui_text_block(Canvas *c, Face f, int size, float lh, int x, float top, int w, int max_lines, const char *s,
                   uint8_t ink, int count_only);
-int cover_style_for(const char *key);
-void cover_draw(Canvas *c, float x, float y, float w, float h, const char *title, const char *author, int style,
-                float border);
+int cover_model_for(const char *title, const char *author, const char *publisher); /* 0..4 */
+void cover_draw(Canvas *c, float x, float y, float w, float h, const char *title, const char *author,
+                const char *publisher, float border);
 
 /* ------------------------------------------------------------------ book */
 
@@ -226,7 +229,8 @@ typedef struct Book {
 Book *book_open(const char *path);
 void book_close(Book *b);
 /* Reads only title/author (fast path for the library). Returns 0 on success. */
-int book_peek_meta(const char *path, char **title, char **author, long long *text_bytes);
+/* Reads title, author and publisher (dc:publisher, "" if missing) without opening the chapters. */
+int book_peek_meta(const char *path, char **title, char **author, char **publisher, long long *text_bytes);
 /* Loads and parses one spine item. Returns NULL on error. */
 Chapter *book_chapter(Book *b, int spine);
 void chapter_free(Chapter *c);
@@ -266,6 +270,7 @@ void hyphen_points_it(const uint32_t *cps, int n, uint8_t *pts);
 typedef struct {
     char *path;
     char *title, *author;
+    char *publisher; /* dc:publisher, "" if unknown: picks the cover model */
     long long size, mtime;
     /* saved position */
     int spine;

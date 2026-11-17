@@ -35,6 +35,8 @@ volatile int g_power;
 static const int SIZES[] = { 14, 16, 18, 20, 22, 24, 28 };
 #define NSIZES ((int)(sizeof SIZES / sizeof SIZES[0]))
 static const int GOALS[] = { 10, 15, 20, 30, 45, 60, 90 };
+static const int STANDBYS[] = { 1, 2, 3, 5, 10 }; /* minutes; powerd's own timer is about 10 */
+#define NSTANDBYS ((int)(sizeof STANDBYS / sizeof STANDBYS[0]))
 #define NGOALS ((int)(sizeof GOALS / sizeof GOALS[0]))
 static const char *SORTS[] = { "Più recente", "Titolo", "Autore" };
 static const int LINES[] = { 130, 140, 150, 160, 180 };
@@ -56,6 +58,7 @@ typedef struct {
     Library lib;
     LayoutParams lp;
     int flash_every, idle_ms, goal_min, sort, books_year;
+    int standby_min; /* "Standby automatico dopo": minutes without keys, 0 = never */
     int standby_seen; /* the Kindle told us about standby: no need for our own idle exit */
     /* reader */
     Book *book;
@@ -113,6 +116,7 @@ static void save_prefs(App *a)
     settings_set_int(&p, "margine", a->lp.margin_x);
     settings_set_int(&p, "lampeggio_ogni", a->flash_every);
     settings_set_int(&p, "libri_anno", a->books_year);
+    settings_set_int(&p, "standby_minuti", a->standby_min);
     settings_save(&p, a->prefs_path, "# Preferenze personali: valgono più di carbonella.conf e restano dopo gli aggiornamenti.");
     free_settings(&p);
 }
@@ -183,14 +187,6 @@ static void message(App *a, const char *title, const char *line2, RefreshKind ki
     display_update(&a->cv, (Rect){ x, y, w, h }, kind);
 }
 
-/* The generated cover depends on title and author, so it stays the same if the file moves. */
-static int book_style(const LibEntry *e)
-{
-    char key[600];
-    snprintf(key, sizeof key, "%s|%s", e->title ? e->title : "", e->author ? e->author : "");
-    return cover_style_for(key);
-}
-
 /* ------------------------------------------------------------ standby */
 
 /* The Kindle is going to sleep: the cover of the book full screen (Simone's design); when it
@@ -203,9 +199,9 @@ static void standby(App *a)
     LibEntry *e = a->entry && a->book ? a->entry : (a->lib.n > 0 ? &a->lib.e[0] : NULL);
     canvas_clear(&a->cv, G_CARTA);
     if (e)
-        cover_draw(&a->cv, 0, 0, a->W, a->H, e->title, e->author, book_style(e), 0);
+        cover_draw(&a->cv, 0, 0, a->W, a->H, e->title, e->author, e->publisher, 0);
     else
-        cover_draw(&a->cv, 0, 0, a->W, a->H, "Carbonella", a->name, 0, 0);
+        cover_draw(&a->cv, 0, 0, a->W, a->H, "Carbonella", a->name, "", 0);
     full(a, REFRESH_FULL);
     log_msg("standby");
     for (;;) {
@@ -233,10 +229,29 @@ static void touch_screensaver(void)
         log_msg("touchScreenSaverTimeout failed");
 }
 
+/* "Standby automatico dopo": no key for standby_min minutes. We ask powerd to go to standby as if the
+ * power button were pressed; it then sends goingToScreenSaver and the cover appears as usual. */
+static void auto_standby(App *a)
+{
+    log_msg("no key for %d min: standby", a->standby_min);
+    if (system("lipc-set-prop com.lab126.powerd powerButton 1 >/dev/null 2>&1") != 0)
+        log_msg("powerButton failed");
+}
+
 static Key wait_key(App *a, int *raw)
 {
-    touch_screensaver();
-    Key k = input_wait(a->standby_seen ? -1 : a->idle_ms, raw);
+    int t = a->standby_seen ? -1 : a->idle_ms, sb = 0;
+    if (!g_sim && a->standby_min > 0 && (t < 0 || a->standby_min * 60000 < t)) {
+        t = a->standby_min * 60000;
+        sb = 1;
+    }
+    Key k = input_wait(t, raw);
+    if (k == K_TIMEOUT && sb) {
+        auto_standby(a);
+        return K_NONE;
+    }
+    if (k != K_TIMEOUT && k != K_SLEEP && k != K_WAKE)
+        touch_screensaver(); /* someone is reading: powerd's own timer starts again */
     if (k == K_SLEEP) {
         standby(a);
         return K_NONE;
@@ -545,12 +560,12 @@ static void draw_page(App *a)
             snprintf(t, sizeof t, "%d min oggi", m);
             int tw = font_text_width(FACE_MONO, 16, t);
             int x = (a->W - (8 + 6 + tw)) / 2;
-            canvas_fill(&a->cv, x, 20, 8, 8, G_SMOG);
+            canvas_fill(&a->cv, x, 20, 8, 8, G_NERO); /* black square since v0.6 */
             font_draw_text(&a->cv, FACE_MONO, 16, x + 14, ui_baseline(FACE_MONO, 16, 15, 19.2f), t, G_CENERE, 0);
         }
     }
     ui_progress(&a->cv, a->lp.margin_x, a->W - 2 * a->lp.margin_x, a->H, NULL, pos, NULL, percent_of(a) / 100.0,
-                G_VELO);
+                G_SMOG); /* track #999 since v0.6 */
 }
 
 static void render_page(App *a, RefreshKind kind)
@@ -682,7 +697,7 @@ static void key_test(App *a);
 
 enum {
     S_GOALS, S_GOAL, S_YEAR, S_FONT, S_SIZE, S_LINE, S_MARGIN, S_VIEW, /* page 1, as in Figma */
-    S_NAME, S_WIFI, S_DATE, S_INFO, S_KINDLE,                          /* page 2 */
+    S_NAME, S_WIFI, S_DATE, S_STANDBY, S_INFO, S_KINDLE,               /* page 2 */
     S_N
 };
 
@@ -707,8 +722,9 @@ static const SetItem SET[S_N] = {
     { 1, 142, 166, "Sistema", "Nome dispositivo", 0 },
     { 1, 0, 222, NULL, "Wi-Fi", 0 },
     { 1, 0, 278, NULL, "Data e ora", 0 },
-    { 1, 0, 334, NULL, "Informazioni", 0 },
-    { 1, 0, 390, NULL, "Torna al kindle", 0 },
+    { 1, 0, 334, NULL, "Standby automatico dopo", 1 }, /* v0.6 */
+    { 1, 0, 390, NULL, "Informazioni", 0 },
+    { 1, 0, 446, NULL, "Torna al kindle", 0 },
 };
 
 /* Wi-Fi of the Kindle: -1 unknown (simulator), 0 off, 1 on. */
@@ -760,6 +776,7 @@ static void set_value(App *a, int i, char *out, size_t n)
         snprintf(out, n, "%d %s %d", tm.tm_mday, MESI[tm.tm_mon], tm.tm_year + 1900);
         break;
     }
+    case S_STANDBY: snprintf(out, n, "%d m", a->standby_min); break;
     case S_INFO: snprintf(out, n, "v%s", CARBONELLA_VERSION); break;
     default: break;
     }
@@ -782,6 +799,7 @@ static int set_change(App *a, int i, int dir)
     switch (i) {
     case S_GOAL: a->goal_min = step(GOALS, NGOALS, a->goal_min, dir); break;
     case S_YEAR: a->books_year = step(YEARS, NYEARS, a->books_year, dir); break;
+    case S_STANDBY: a->standby_min = step(STANDBYS, NSTANDBYS, a->standby_min, dir); break;
     case S_SIZE: a->lp.size = step(SIZES, NSIZES, a->lp.size, dir); break;
     case S_LINE: a->lp.line_pct = step(LINES, NLINES, a->lp.line_pct, dir); break;
     case S_MARGIN: a->lp.margin_x = step(MARGINS, 3, a->lp.margin_x, dir); break;
@@ -1442,12 +1460,13 @@ static int page_has_bookmark(App *a)
     return 0;
 }
 
-/* "02 · Lettura Segnalibro": the folded corner at the top right, 32 x 32. */
+/* "02 · Lettura Segnalibro" (v0.6): the folded corner at the top right, 32 x 32, two greys split by the
+ * diagonal: #AAA above, #CCC (the fold) below. */
 static void draw_bookmark_corner(App *a)
 {
-    canvas_fill(&a->cv, a->W - 32, 0, 32, 32, G_CARTA);
-    float tri[6] = { (float)a->W - 32, 0, (float)a->W - 32, 32, (float)a->W, 32 };
-    canvas_polygon(&a->cv, tri, 3, G_NERO);
+    canvas_fill(&a->cv, a->W - 32, 0, 32, 32, G_FUMO);
+    float tri[6] = { (float)a->W - 32, 0, (float)a->W, 32, (float)a->W - 32, 32 };
+    canvas_polygon(&a->cv, tri, 3, G_LEGGERO);
 }
 
 /* A few words from byte pos of the chapter, on one line. */
@@ -1916,10 +1935,10 @@ static void info_row(App *a, float x, float y, const char *left, const char *rig
     float top = y + G_FRAME_H + 2.15f + 4.3f;
     int base = ui_baseline(FACE_MONO_MEDIUM, 13, top, 12.9f);
     int lx = (int)lrintf(x + 5);
-    if (badge) {
+    if (badge) { /* "Nuovo": black box 45 x 17, white text 4 px in, as in Figma */
         int tw = font_text_width(FACE_MONO_MEDIUM, 13, left);
-        canvas_fill(&a->cv, lx, (int)lrintf(top - 1.08f - 2.15f), tw + 7, (int)lrintf(12.9f + 4.3f), G_NERO);
-        font_draw_text(&a->cv, FACE_MONO_MEDIUM, 13, lx + 3, base, left, G_CARTA, 0);
+        canvas_fill(&a->cv, lx, (int)lrintf(top - 1), tw + 8, 17, G_NERO);
+        font_draw_text(&a->cv, FACE_MONO_MEDIUM, 13, lx + 4, base + 1, left, G_CARTA, 0);
     } else if (left)
         font_draw_text(&a->cv, FACE_MONO_MEDIUM, 13, lx, base, left, G_NERO, right ? 100 : (int)G_CW - 10);
     if (right) {
@@ -1938,12 +1957,9 @@ static int pages_of(App *a, const LibEntry *e)
     return p < 1 ? 1 : p;
 }
 
-static void frame_clip(Canvas *cv, float x, float y, int focus)
+static void frame_clip(Canvas *cv, float x, float y)
 {
-    if (focus)
-        canvas_clip(cv, (int)lrintf(x + 3), (int)lrintf(y + 3), (int)lrintf(G_CW) - 6, (int)lrintf(G_FRAME_H) - 6);
-    else
-        canvas_clip(cv, (int)lrintf(x), (int)lrintf(y), (int)lrintf(G_CW), (int)lrintf(G_FRAME_H));
+    canvas_clip(cv, (int)lrintf(x), (int)lrintf(y), (int)lrintf(G_CW), (int)lrintf(G_FRAME_H));
 }
 
 static void draw_cell(App *a, const Cell *c, float x, float y, int focus)
@@ -1951,20 +1967,18 @@ static void draw_cell(App *a, const Cell *c, float x, float y, int focus)
     Canvas *cv = &a->cv;
     Rect r = { (int)x - 1, (int)y - 1, (int)G_CW + 3, (int)G_CH + 3 };
     canvas_fill(cv, r.x, r.y, r.w, r.h, G_CARTA);
-    /* "Focus = cornice nera di 3 px": the cover moves inside the frame and is cut, the grid stays */
-    float d = focus ? 3.2f : 0;
-    frame_clip(cv, x, y, focus);
+    /* "Focus = cornice nera di 3 px" (v0.6): a square frame around the cell, the cover does not move */
+    frame_clip(cv, x, y);
     if (c->kind == CELL_BOOK) {
-        cover_draw(cv, x + 4.3f + d, y + 4.3f + d, 172.064f, 249.492f, c->e->title, c->e->author,
-                   book_style(c->e), 2);
+        cover_draw(cv, x + 4.3f, y + 4.3f, 172.064f, 249.492f, c->e->title, c->e->author, c->e->publisher, 0);
     } else {
         /* "Raccolte": a pile of three covers, the most recent in front */
         static const float off[3][2] = { { 0, 6.24f }, { 4.3f, 1.94f }, { 8.6f, -2.37f } };
         for (int i = 2; i >= 0; i--) {
             const LibEntry *e = c->pile[i] ? c->pile[i] : c->pile[0];
-            float px = x + 4.3f + off[i][0] + d, py = y + 4.3f + off[i][1] + d;
+            float px = x + 4.3f + off[i][0], py = y + 4.3f + off[i][1];
             if (e)
-                cover_draw(cv, px, py, 167.762f, 243.255f, e->title, e->author, book_style(e), 1);
+                cover_draw(cv, px, py, 167.762f, 243.255f, e->title, e->author, e->publisher, 1);
             else /* empty collection: blank sheets */
                 canvas_fill(cv, (int)lrintf(px), (int)lrintf(py), 168, 243, G_CARTA);
             canvas_frame(cv, (int)lrintf(px), (int)lrintf(py), 168, 243, e ? 1 : 2, G_NERO);
@@ -1981,12 +1995,12 @@ static void draw_cell(App *a, const Cell *c, float x, float y, int focus)
             snprintf(left, sizeof left, "Letto");
         else if (e->percent >= 0)
             snprintf(left, sizeof left, "%d%%", e->percent);
-        else {
-            badge = !g_sim && time(NULL) - e->mtime < 7 * 86400; /* arrived this week */
-            snprintf(left, sizeof left, badge ? "NUOVO" : "Nuovo");
+        else { /* never opened: the black "NUOVO" label (v0.6) */
+            badge = 1;
+            snprintf(left, sizeof left, "NUOVO");
         }
-        int p = pages_of(a, e);
-        snprintf(right, sizeof right, p == 1 ? "%d pagina" : "%d pagine", p);
+        int p = pages_of(a, e); /* only the number, as in Figma since v0.6 */
+        snprintf(right, sizeof right, "%d", p);
         info_row(a, x, y, left, p > 0 ? right : NULL, badge);
     } else {
         char cnt[16];
@@ -2469,13 +2483,23 @@ static void key_test(App *a)
     }
 }
 
-/* All the 23 cover styles on one screen, to compare with the Figma component (--copertine). */
+/* The five publisher models with the books of the Figma references, plus the same books with another
+ * publisher, to compare with "Frame 6" (--copertine). */
 static void cover_sheet(App *a)
 {
+    static const char *B[][3] = {
+        { "La forma dell'acqua", "Andrea Camilleri", "Sellerio" },
+        { "Le nozze di Cadmo e Armonia", "Roberto Calasso", "Adelphi" },
+        { "Le nozze di Cadmo e Armonia", "Roberto Calasso", "Einaudi" },
+        { "Cecità", "José Saramago", "Feltrinelli" },
+        { "Cecità", "José Ernatdesaramago", "Bompiani" },
+        { "Il barone rampante", "Italo Calvino", "Mondadori" },
+    };
     canvas_clear(&a->cv, G_CARTA);
-    for (int i = 0; i < 23; i++) {
-        float x = 8 + (i % 5) * 118, y = 8 + (i / 5) * 160;
-        cover_draw(&a->cv, x, y, 106, 153.7f, "Il barone rampante", "Italo Calvino", i, 1);
+    for (int i = 0; i < 6; i++) {
+        float x = 24 + (i % 3) * 192, y = 24 + (i / 3) * 384;
+        cover_draw(&a->cv, x, y, 168, 243, B[i][0], B[i][1], B[i][2], 0);
+        font_draw_text(&a->cv, FACE_MONO, 14, (int)x, (int)y + 268, B[i][2], G_NERO, 168);
     }
     full(a, REFRESH_FULL);
 }
@@ -2567,6 +2591,7 @@ int main(int argc, char **argv)
     a->goal_min = settings_int(&a->cfg, "obiettivo_minuti", 30);
     a->sort = settings_int(&a->cfg, "ordina", 0);
     a->books_year = settings_int(&a->cfg, "libri_anno", 12);
+    a->standby_min = settings_int(&a->cfg, "standby_minuti", 5);
     if (a->sort < 0 || a->sort > 2)
         a->sort = 0;
 

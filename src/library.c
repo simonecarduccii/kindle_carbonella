@@ -113,14 +113,15 @@ void library_scan(Library *lib, const char *books_dir, const char *data_dir)
     if (cache) {
         char *save = NULL;
         for (char *line = strtok_r(cache, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
-            char *f[6];
-            if (split_tsv(line, f, 6) < 6) /* v0.1 lines had no text size: read the book again */
+            char *f[7];
+            if (split_tsv(line, f, 7) < 7) /* lines before v0.6 had no publisher: read the book again */
                 continue;
             LibEntry *e = library_find(lib, f[0]);
             if (e && !e->title && atoll(f[1]) == e->size && atoll(f[2]) == e->mtime) {
                 e->title = xstrdup(f[3]);
                 e->author = xstrdup(f[4]);
                 e->text_bytes = atoll(f[5]);
+                e->publisher = xstrdup(f[6]);
                 from_cache++;
             }
         }
@@ -130,13 +131,18 @@ void library_scan(Library *lib, const char *books_dir, const char *data_dir)
         LibEntry *e = &lib->e[i];
         if (e->title)
             continue;
-        if (book_peek_meta(e->path, &e->title, &e->author, &e->text_bytes) != 0) {
+        free(e->publisher);
+        e->publisher = NULL;
+        if (book_peek_meta(e->path, &e->title, &e->author, &e->publisher, &e->text_bytes) != 0) {
             const char *s = strrchr(e->path, '/');
             e->title = xstrdup(s ? s + 1 : e->path);
             e->author = xstrdup("(file non leggibile)");
         }
+        if (!e->publisher)
+            e->publisher = xstrdup("");
         sanitize(e->title);
         sanitize(e->author);
+        sanitize(e->publisher);
         opened++;
     }
     if (opened) {
@@ -144,13 +150,13 @@ void library_scan(Library *lib, const char *books_dir, const char *data_dir)
         char *buf = xmalloc(cap);
         for (int i = 0; i < lib->n; i++) {
             LibEntry *e = &lib->e[i];
-            size_t need = strlen(e->path) + strlen(e->title) + strlen(e->author) + 64;
+            size_t need = strlen(e->path) + strlen(e->title) + strlen(e->author) + strlen(e->publisher) + 64;
             if (n + need > cap) {
                 cap = (n + need) * 2;
                 buf = xrealloc(buf, cap);
             }
-            n += snprintf(buf + n, cap - n, "%s\t%lld\t%lld\t%s\t%s\t%lld\n", e->path, e->size, e->mtime, e->title,
-                          e->author, e->text_bytes);
+            n += snprintf(buf + n, cap - n, "%s\t%lld\t%lld\t%s\t%s\t%lld\t%s\n", e->path, e->size, e->mtime,
+                          e->title, e->author, e->text_bytes, e->publisher);
         }
         write_file_atomic(path, buf, n);
         free(buf);
@@ -223,6 +229,7 @@ void library_free(Library *lib)
         free(lib->e[i].path);
         free(lib->e[i].title);
         free(lib->e[i].author);
+        free(lib->e[i].publisher);
     }
     free(lib->e);
     memset(lib, 0, sizeof *lib);

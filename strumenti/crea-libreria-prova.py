@@ -4,7 +4,7 @@ le schermate del simulatore con il design.
 
 Uso: python3 strumenti/crea-libreria-prova.py LIBRO_BASE.epub CARTELLA_LIBRI CARTELLA_DATI
 
-Copia LIBRO_BASE.epub cambiando titolo e autore; mette tre libri nella cartella "Saggi Brevi"
+Copia LIBRO_BASE.epub cambiando titolo, autore ed editore; mette tre libri nella cartella "Saggi Brevi"
 (diventa una raccolta) e scrive dati/posizioni.tsv con letture e percentuali come nel design.
 """
 import os
@@ -14,20 +14,21 @@ import time
 import zipfile
 
 LIBRI = [
-    # (titolo, autore, sottocartella, percentuale o None, minuti fa dell'ultima lettura)
-    ("I promessi sposi", "Alessandro Manzoni", "", 30, 5),
-    ("Il barone rampante", "Italo Calvino", "", 10, 60),
-    ("Lessico famigliare", "Natalia Ginzburg", "", 100, 600),
-    ("Lezioni americane", "Italo Calvino", "Saggi Brevi", 40, 120),
-    ("Sei passeggiate", "Umberto Eco", "Saggi Brevi", None, 0),
-    ("Il sistema periodico", "Primo Levi", "Saggi Brevi", None, 0),
-    ("Se una notte d'inverno un viaggiatore", "Italo Calvino", "", None, 0),
-    ("Il nome della rosa", "Umberto Eco", "", 12, 900),
-    ("Il deserto dei Tartari", "Dino Buzzati", "", 100, 2000),
-    ("Se questo è un uomo", "Primo Levi", "", 100, 3000),
-    ("La luna e i falò", "Cesare Pavese", "", 55, 1200),
-    ("Il fu Mattia Pascal", "Luigi Pirandello", "", None, 0),
-    ("Gli indifferenti", "Alberto Moravia", "", None, 0),
+    # (titolo, autore, editore, sottocartella, percentuale o None, minuti fa dell'ultima lettura)
+    # L'editore sceglie il modello di copertina (v0.6); "" = modello fisso scelto da titolo e autore.
+    ("I promessi sposi", "Alessandro Manzoni", "", "", 30, 5),
+    ("Il barone rampante", "Italo Calvino", "Mondadori", "", 10, 60),
+    ("Lessico famigliare", "Natalia Ginzburg", "Einaudi", "", 100, 600),
+    ("Lezioni americane", "Italo Calvino", "Mondadori", "Saggi Brevi", 40, 120),
+    ("Sei passeggiate", "Umberto Eco", "Bompiani", "Saggi Brevi", None, 0),
+    ("Il sistema periodico", "Primo Levi", "Einaudi", "Saggi Brevi", None, 0),
+    ("La forma dell'acqua", "Andrea Camilleri", "Sellerio", "", None, 0),
+    ("Il nome della rosa", "Umberto Eco", "Bompiani", "", 12, 900),
+    ("Le nozze di Cadmo e Armonia", "Roberto Calasso", "Adelphi", "", 100, 2000),
+    ("Cecità", "José Saramago", "Feltrinelli", "", 100, 3000),
+    ("La luna e i falò", "Cesare Pavese", "Einaudi", "", 55, 1200),
+    ("Il fu Mattia Pascal", "Luigi Pirandello", "Feltrinelli", "", None, 0),
+    ("Gli indifferenti", "Alberto Moravia", "Bompiani", "", None, 0),
 ]
 
 
@@ -36,7 +37,7 @@ def main(base, books, data):
     os.makedirs(data, exist_ok=True)
     now = int(time.time())
     pos = []
-    for i, (titolo, autore, cartella, perc, fa) in enumerate(LIBRI):
+    for i, (titolo, autore, editore, cartella, perc, fa) in enumerate(LIBRI):
         d = os.path.join(books, cartella) if cartella else books
         os.makedirs(d, exist_ok=True)
         path = os.path.join(d, "libro%02d.epub" % i)
@@ -47,6 +48,9 @@ def main(base, books, data):
                     t = data_b.decode("utf-8")
                     t = re.sub(r"<dc:title>.*?</dc:title>", "<dc:title>%s</dc:title>" % titolo, t)
                     t = re.sub(r"<dc:creator>.*?</dc:creator>", "<dc:creator>%s</dc:creator>" % autore, t)
+                    t = re.sub(r"<dc:publisher>.*?</dc:publisher>\s*", "", t)
+                    if editore:
+                        t = t.replace("</dc:creator>", "</dc:creator><dc:publisher>%s</dc:publisher>" % editore, 1)
                     data_b = t.encode("utf-8")
                 new = zipfile.ZipInfo(info.filename, info.date_time)  # a copy: writestr changes it
                 new.compress_type = info.compress_type

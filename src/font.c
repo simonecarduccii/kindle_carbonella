@@ -3,8 +3,9 @@
  *
  * TrueType rendering with stb_truetype (one header file, public domain): far lighter than FreeType
  * and enough for our needs. Fonts (SIL Open Font License), reduced to Latin characters to save
- * space and memory: Literata (TypeTogether) for reading and cover titles, IBM Plex Mono for the status
- * lines and captions, IBM Plex Sans for menus - the same families as the Figma design.
+ * space and memory: Literata (TypeTogether) for reading, IBM Plex Mono for the status lines and captions,
+ * IBM Plex Sans for menus, Libre Bodoni and Libre Baskerville for the publisher covers - the same families
+ * as the Figma design.
  *
  * Every glyph is rendered once and kept in a cache (key: face, size, sub-pixel position, code point).
  * Anti-aliased pixels pass through a "darkening" curve: on e-ink light greys disappear, so thin
@@ -25,7 +26,9 @@ static const char *FILES[FACE_COUNT] = { "Literata-Regular.ttf", "Literata-Itali
                                          "Literata-Bold.ttf", "Literata-BoldItalic.ttf",
                                          "IBMPlexMono-Regular.ttf", "IBMPlexMono-Medium.ttf",
                                          "IBMPlexSans-Regular.ttf", "IBMPlexSans-Medium.ttf",
-                                         "Literata-SemiBold.ttf" };
+                                         "Literata-SemiBold.ttf", "IBMPlexMono-Bold.ttf",
+                                         "LibreBodoni-Regular.ttf", "LibreBaskerville-Regular.ttf",
+                                         "LibreBaskerville-Italic.ttf" };
 
 static struct {
     unsigned char *data;
@@ -82,6 +85,10 @@ int font_load(const char *dir)
                 fb = F[FACE_SANS].ok ? FACE_SANS : FACE_BOLD;
             else if (f == FACE_SEMIBOLD)
                 fb = FACE_BOLD;
+            else if (f == FACE_MONO_BOLD)
+                fb = FACE_MONO_MEDIUM;
+            else if (f == FACE_BASK_ITALIC)
+                fb = FACE_ITALIC;
             F[f] = F[fb];
         }
     for (int i = 0; i < 256; i++)

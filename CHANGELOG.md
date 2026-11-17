@@ -2,6 +2,32 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Finché siamo a `0.x` tutto può cambiare.
 
+## v0.6.0 · 2026-11-17
+
+Le modifiche di Simone in Figma e le copertine dai suoi modelli di editori.
+
+- **Copertine**: ogni libro è disegnato con uno dei cinque modelli di Simone (Frame 6 in Figma): Sellerio,
+  Adelphi, Einaudi, Feltrinelli, Bompiani, con il suo titolo e il suo autore.
+  - Se l'editore scritto nell'EPUB (`dc:publisher`) è uno dei cinque, si usa il suo modello, con il logo
+    come in Figma.
+  - Altrimenti il modello è scelto da titolo e autore, sempre lo stesso per lo stesso libro, e al posto
+    del logo c'è il nome del vero editore (vuoto se l'EPUB non lo dice).
+  - Le copertine generate (23 stili) non ci sono più.
+  - Nuovi caratteri (SIL OFL, ridotti all'alfabeto latino): Libre Bodoni, Libre Baskerville (normale e
+    corsivo), IBM Plex Mono Bold.
+  - Il file `dati/libreria.tsv` ha una colonna in più (l'editore): al primo avvio i libri vengono riletti.
+- **Crea nuova raccolta**: bordo tratteggiato (6 px pieni, 6 vuoti) nel menu della Home e nel pannello
+  delle raccolte.
+- **Segnalibro**: nuova linguetta, un angolo piegato in due grigi (#AAA sopra, #CCC sotto).
+- **Avviso obiettivo**: il quadratino accanto a "30 min oggi" è nero.
+- **Impostazioni, pagina 2**: nuova voce *Standby automatico dopo* (‹ 5 m ›, si sceglie fra 1, 2, 3, 5 e
+  10 minuti). Dopo quel tempo senza tasti Carbonella chiede lo standby al Kindle, e compare la copertina.
+- **Home**:
+  - La selezione è una cornice nera quadrata intorno al libro, e la copertina non si sposta più.
+  - Etichetta **NUOVO** nera per i libri mai aperti.
+  - Sotto la copertina c'è solo il numero delle pagine, senza "pagine".
+- **Lettura**: il numero "12 di 684" è grafite (#222), e la traccia della barra è #999.
+
 ## v0.5.3 · 2026-11-17
 
 Piccole modifiche di Simone in Figma ("ho fatto dei minimi cambiamenti aggiorna tutto"). Le ho trovate

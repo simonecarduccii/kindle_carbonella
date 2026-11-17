@@ -607,7 +607,7 @@ static void key_test(App *a);
 
 enum {
     S_GOAL, S_YEAR, S_FONT, S_SIZE, S_LINE, S_MARGIN, S_FLASH, S_VIEW, /* page 1, as in Figma */
-    S_SORT, S_RESCAN, S_KEYS, S_VERSION,                               /* page 2 */
+    S_NAME, S_WIFI, S_DATE, S_INFO, S_KINDLE, S_KEYS, S_RESCAN,        /* page 2 */
     S_N
 };
 
@@ -617,21 +617,48 @@ typedef struct {
 } SetItem;
 
 /* "04 · Impostazioni": header, title, groups (label + rows of 56 px), "Pagina 1 di 2" at the bottom.
- * Rows from the frame: LETTURA label at 149.6, rows from 173; ASPETTO label at 313, rows from 337. */
+ * Positions from the two frames: page 1 LETTURA label at 150, rows from 174; ASPETTO label at 314,
+ * rows from 338. Page 2 SISTEMA label at 142, rows from 166; then our own group STRUMENTI. */
 static const SetItem SET[S_N] = {
-    { 0, 150, 173, "Lettura", "Obiettivo giornaliero" },
-    { 0, 0, 229, NULL, "Libri da leggere quest'anno" },
-    { 0, 313, 337, "Aspetto", "Carattere" },
-    { 0, 0, 393, NULL, "Dimensione" },
-    { 0, 0, 449, NULL, "Interlinea" },
-    { 0, 0, 505, NULL, "Margini" },
-    { 0, 0, 561, NULL, "Refresh completo" },
-    { 0, 0, 617, NULL, "Visualizzazione" },
-    { 1, 150, 173, "Libreria", "Ordina per" },
-    { 1, 0, 229, NULL, "Aggiorna l'elenco dei libri" },
-    { 1, 313, 337, "Carbonella", "Prova dei tasti" },
-    { 1, 0, 393, NULL, "Versione" },
+    { 0, 150, 174, "Lettura", "Obiettivo giornaliero" },
+    { 0, 0, 230, NULL, "Libri da leggere quest'anno" },
+    { 0, 314, 338, "Aspetto", "Carattere" },
+    { 0, 0, 394, NULL, "Dimensione" },
+    { 0, 0, 450, NULL, "Interlinea" },
+    { 0, 0, 506, NULL, "Margini" },
+    { 0, 0, 562, NULL, "Refresh completo" },
+    { 0, 0, 618, NULL, "Visualizzazione" },
+    { 1, 142, 166, "Sistema", "Nome dispositivo" },
+    { 1, 0, 222, NULL, "Wi-Fi" },
+    { 1, 0, 278, NULL, "Data e ora" },
+    { 1, 0, 334, NULL, "Informazioni" },
+    { 1, 0, 390, NULL, "Torna al Kindle" },
+    { 1, 474, 498, "Strumenti", "Prova dei tasti" },
+    { 1, 0, 554, NULL, "Aggiorna l'elenco dei libri" },
 };
+
+/* Wi-Fi of the Kindle: -1 unknown (simulator), 0 off, 1 on. */
+static int wifi_state(void)
+{
+    if (g_sim)
+        return -1;
+    FILE *f = popen("lipc-get-prop com.lab126.cmd wirelessEnable 2>/dev/null", "r");
+    if (!f)
+        return -1;
+    int v = -1;
+    if (fscanf(f, "%d", &v) != 1)
+        v = -1;
+    pclose(f);
+    return v;
+}
+
+static void wifi_set(int on)
+{
+    if (g_sim)
+        return;
+    int r = system(on ? "lipc-set-prop com.lab126.cmd wirelessEnable 1" : "lipc-set-prop com.lab126.cmd wirelessEnable 0");
+    log_msg("wi-fi %s (%d)", on ? "on" : "off", r);
+}
 
 static void set_value(App *a, int i, char *out, size_t n)
 {
@@ -650,18 +677,33 @@ static void set_value(App *a, int i, char *out, size_t n)
             snprintf(out, n, "ogni %d pagine", a->flash_every);
         break;
     case S_VIEW: snprintf(out, n, "Copertine"); break;
-    case S_SORT: snprintf(out, n, "%s", SORTS[a->sort]); break;
-    case S_VERSION: snprintf(out, n, "%s", CARBONELLA_VERSION); break;
+    case S_NAME: snprintf(out, n, "%s", a->name); break;
+    case S_WIFI: {
+        int w = wifi_state();
+        snprintf(out, n, "%s", w < 0 ? "—" : w ? "Acceso" : "Spento");
+        break;
+    }
+    case S_DATE: {
+        static const char *MESI[] = { "gen", "feb", "mar", "apr", "mag", "giu",
+                                      "lug", "ago", "set", "ott", "nov", "dic" };
+        time_t now = time(NULL);
+        struct tm tm;
+        localtime_r(&now, &tm);
+        snprintf(out, n, "%d %s %d", tm.tm_mday, MESI[tm.tm_mon], tm.tm_year + 1900);
+        break;
+    }
+    case S_INFO: snprintf(out, n, "v%s", CARBONELLA_VERSION); break;
     default: break;
     }
 }
 
 static void set_row(App *a, int i, int focus)
 {
-    char v[48];
+    char v[160];
     set_value(a, i, v, sizeof v);
     ui_menu_row(&a->cv, 32, SET[i].row_top, a->W - 64, SET[i].label, v,
-                i == S_RESCAN ? ICON_PLUS : i == S_VERSION ? ICON_NONE : ICON_ARROW, focus);
+                i == S_RESCAN ? ICON_PLUS : i == S_NAME || i == S_DATE || i == S_INFO ? ICON_NONE : ICON_ARROW,
+                focus);
 }
 
 /* Change a setting by one step (dir +1 / -1). Returns 1 if the reading page must be laid out again. */
@@ -674,7 +716,12 @@ static int set_change(App *a, int i, int dir)
     case S_LINE: a->lp.line_pct = step(LINES, NLINES, a->lp.line_pct, dir); break;
     case S_MARGIN: a->lp.margin_x = step(MARGINS, 3, a->lp.margin_x, dir); break;
     case S_FLASH: a->flash_every = step(FLASHES, NFLASHES, a->flash_every, dir); break;
-    case S_SORT: a->sort = (a->sort + (dir > 0 ? 1 : 2)) % 3; break;
+    case S_WIFI: {
+        int w = wifi_state();
+        if (w >= 0)
+            wifi_set(!w);
+        return 0;
+    }
     default: return 0; /* Carattere and Visualizzazione have one choice for now */
     }
     save_prefs(a);
@@ -721,10 +768,14 @@ static int settings_run(App *a)
         } else if (k == K_DOWN) {
             sel = (sel + 1) % S_N;
         } else if (k == K_PREV) {
-            sel = page == 0 ? S_SORT : 0;
+            sel = page == 0 ? S_NAME : 0;
         } else if (k == K_NEXT) {
-            sel = page == 0 ? S_SORT : 0;
+            sel = page == 0 ? S_NAME : 0;
         } else if (k == K_SELECT || k == K_RIGHT || k == K_LEFT) {
+            if (sel == S_KINDLE && k == K_SELECT) {
+                result = 2;
+                break;
+            }
             if (sel == S_RESCAN && k == K_SELECT) {
                 result = 1;
                 break;
@@ -1101,7 +1152,7 @@ static void draw_cell(App *a, const Cell *c, float x, float y, int focus)
             snprintf(left, sizeof left, badge ? "NUOVO" : "Nuovo");
         }
         int p = pages_of(a, e);
-        snprintf(right, sizeof right, "%d pagine", p);
+        snprintf(right, sizeof right, p == 1 ? "%d pagina" : "%d pagine", p);
         info_row(a, x, y, left, p > 0 ? right : NULL, badge);
     } else {
         char cnt[16];

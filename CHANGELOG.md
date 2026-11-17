@@ -2,6 +2,13 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Finché siamo a `0.x` tutto può cambiare.
 
+## v0.3.1 · 2026-11-17
+
+- **La Home compare subito**: con alcune copertine (lo stile "Zigzag") il primo disegno della Home
+  richiedeva circa 7 secondi sul Kindle. Le linee a zigzag ora si disegnano un tratto alla volta:
+  stesso risultato, circa 12 volte più veloce.
+- Pagina 2 delle Impostazioni come il frame Figma (gruppo Sistema) e "1 pagina" al singolare.
+
 ## v0.3.0 · 2026-11-17 · "Appunti di Simone"
 
 - **Sfondo bianco puro** ovunque (prima era il grigio "Carta" #EEE): sull'e-ink il bianco appare
@@ -12,7 +19,8 @@ Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Finché siamo a `0.x
   - *Lettura*: obiettivo giornaliero, libri da leggere quest'anno;
   - *Aspetto*: carattere (Literata), dimensione, interlinea (1,3–1,8), margini (stretti, medi, larghi),
     refresh completo (ogni 1–20 pagine), visualizzazione (copertine);
-  - pagina 2: ordina per, aggiorna l'elenco dei libri, prova dei tasti, versione.
+  - pagina 2 (*Sistema*): nome dispositivo, Wi-Fi acceso/spento, data e ora, informazioni, torna al Kindle;
+    *Strumenti*: prova dei tasti, aggiorna l'elenco dei libri.
   Su/giù per scegliere, centro o destra per il valore successivo, sinistra per il precedente,
   Indietro per uscire. Tutto viene salvato in `dati/preferenze.conf`.
 - Il menu della Home ha la voce "Impostazioni"; le altre voci restano.

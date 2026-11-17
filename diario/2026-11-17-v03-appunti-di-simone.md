@@ -15,7 +15,7 @@ così le schermate si possono guardare e ritoccare anche lì.
 
 ## Tempo
 
-00:36–00:50 UTC del 17/11 (circa 15 minuti, Claude).
+00:36–01:00 UTC del 17/11 (circa 25 minuti, Claude), compresa la v0.3.1 e le schermate in Figma.
 
 ## Cosa è cambiato
 
@@ -23,7 +23,7 @@ così le schermate si possono guardare e ritoccare anche lì.
 |---------|------------------------|
 | 1. Sfondo bianco | Il grigio "Carta" (#EEE) ora è bianco puro (`G_CARTA 0` in `carbonella.h`): vale per Home, lettura, menu, Impostazioni e anche per le copertine chiare. La vecchia regola "mai bianco puro" non vale più. |
 | 2. Il testo spariva aprendo il menu | Il menu ridisegna la pagina sotto al pannello invece di cancellarla; in alto resta il titolo del libro. Se cambi dimensione del carattere, la pagina sotto si aggiorna subito. |
-| 3. Pagina Impostazioni | Nuova schermata come il frame "04 · Impostazioni": titolo, gruppi LETTURA e ASPETTO con le stesse 8 voci e le stesse posizioni (etichetta a 150, righe da 173 e da 337), "Pagina 1 di 2" in basso. La pagina 2 raccoglie Ordina per, Aggiorna l'elenco, Prova dei tasti e Versione. Si apre dal menu della Home e da quello di lettura. |
+| 3. Pagina Impostazioni | Nuova schermata come il frame "04 · Impostazioni": titolo, gruppi LETTURA e ASPETTO con le stesse 8 voci e le stesse posizioni (etichetta a 150, righe da 173 e da 337), "Pagina 1 di 2" in basso. La pagina 2 è come il secondo frame: gruppo SISTEMA con Nome dispositivo, Wi-Fi (acceso/spento, si cambia col tasto centrale), Data e ora, Informazioni (versione) e Torna al Kindle; sotto, un gruppo STRUMENTI nostro con Prova dei tasti e Aggiorna l'elenco dei libri. Si apre dal menu della Home e da quello di lettura. |
 
 Note sulle voci:
 
@@ -49,6 +49,23 @@ Note sulle voci:
   dalla Home.
 - AddressSanitizer + UBSan sullo stesso giro: nessun errore (solo la memoria non liberata all'uscita, come prima).
 - Compilazione ARM: binario di 238 KB.
+
+## v0.3.1: la Home lenta
+
+Installata la v0.3.0, il log del Kindle mostrava circa **7 secondi** tra la lettura della libreria e il
+primo disegno (con la v0.2 era un secondo). Ricreata qui la stessa libreria (i due Mr Gwyn, "I miei
+ritagli.txt", "You are Jailbroken.txt") ed eseguito il binario ARM in emulazione: 9 secondi anche qui.
+Il profilo ha indicato le linee spezzate delle copertine: "I miei ritagli" ha lo stile **Zigzag**
+(5 linee da 40 tratti) e per ogni punto del riquadro si provavano tutti i 40 tratti, con i calcoli in
+virgola mobile emulati via software. Ora ogni tratto si disegna nel suo piccolo riquadro: in emulazione
+da 9 s a 0,7 s, immagine identica. (La v0.2 aveva lo stesso difetto: al primo avvio la prima copertina
+era un'altra.)
+
+## Figma
+
+Le schermate della v0.3 sono nel file Figma, pagina "Carbonella", sezione **"v0.3.0 · sul Kindle
+(17 nov 2026)"**, fatte con i componenti del file (Voce menu, Pannello menu, Header, Copertina…), più
+una nota su cosa modificare. Lo stile colore **E-ink/Carta** ora è bianco puro, come nel codice.
 
 ## Prossimi passi
 

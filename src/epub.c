@@ -349,6 +349,31 @@ typedef struct {
     char *id, *href, *type, *props;
 } Item;
 
+/* v1.0.2: store titles often end with edition notes, e.g. "Così parlò Zarathustra (Piccola biblioteca
+ * Adelphi) (Italian Edition)" or "La morte della Pizia (Adelphi)": trailing groups in parentheses are
+ * dropped, unless that would leave nothing. */
+static void clean_title(char *t)
+{
+    if (!t)
+        return;
+    for (;;) {
+        size_t n = strlen(t);
+        while (n > 0 && t[n - 1] == ' ')
+            t[--n] = 0;
+        if (n == 0 || t[n - 1] != ')')
+            return;
+        char *open = strrchr(t, '(');
+        if (!open)
+            return;
+        char *end = open;
+        while (end > t && end[-1] == ' ')
+            end--;
+        if (end == t)
+            return;
+        *end = 0;
+    }
+}
+
 typedef struct {
     char *title, *author, *language, *publisher;
     Item *items;
@@ -426,6 +451,7 @@ static int parse_opf(const char *data, size_t len, Opf *o, int meta_only)
             continue;
         if (name_is(&t, "title") && !o->title && !t.self_close) {
             o->title = element_text(&x, "title");
+            clean_title(o->title);
         } else if (name_is(&t, "creator") && !t.self_close) {
             char role[32] = "";
             xml_attr(&t, "role", role, sizeof role);

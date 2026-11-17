@@ -2,6 +2,11 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Dalla 1.0.0 le versioni MINORE aggiungono cose, le CORREZIONE sistemano.
 
+## v1.0.2 · 2026-11-17
+
+- Titoli più puliti: le note tra parentesi alla fine del titolo dell'EPUB vengono tolte, per esempio
+  "Così parlò Zarathustra (Piccola biblioteca Adelphi) (Italian Edition)" diventa "Così parlò Zarathustra".
+
 ## v1.0.1 · 2026-11-17
 
 - **Il tasto Home risveglia il Kindle** dallo standby, come il tasto di accensione (Simone). Funziona

@@ -298,6 +298,8 @@ typedef struct {
 /* base_dir: where carbonella.conf and the shipped pagine_carta.tsv are (dati/pagine_carta.tsv wins). */
 void library_scan(Library *lib, const char *books_dir, const char *data_dir, const char *base_dir);
 void library_free(Library *lib);
+/* "Pagine del cartaceo": saves the paper pages typed by hand in dati/pagine_carta.tsv (0 = remove). */
+int print_pages_set(const char *data_dir, LibEntry *e, int pages);
 void library_save_positions(const Library *lib, const char *data_dir);
 LibEntry *library_find(Library *lib, const char *path);
 void reading_log(const char *data_dir, const char *path, long long start, long long end, int pages);

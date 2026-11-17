@@ -41,8 +41,6 @@ static const int LINES[] = { 130, 140, 150, 160, 180 };
 #define NLINES ((int)(sizeof LINES / sizeof LINES[0]))
 static const int MARGINS[] = { 32, 48, 64 };
 static const char *MARGIN_NAMES[] = { "Stretti", "Medi", "Larghi" };
-static const int FLASHES[] = { 1, 3, 6, 10, 20 };
-#define NFLASHES ((int)(sizeof FLASHES / sizeof FLASHES[0]))
 static const int YEARS[] = { 6, 12, 18, 24, 36, 52 };
 #define NYEARS ((int)(sizeof YEARS / sizeof YEARS[0]))
 
@@ -304,6 +302,46 @@ static int panel_run(App *a, Row *rows, int n, int *selp, const char *footer_l, 
     }
 }
 
+/* Small "Pannello menu" in the middle of the screen, over the screen faded to 30% (frame
+ * "00 Home Menù Raccolta"): 424 px wide, rows of 56 px. Returns the chosen row, -1 for Back. */
+#define POPUP_MAX 11
+static int popup_run(App *a, Row *rows, int n, int sel)
+{
+    if (n > POPUP_MAX)
+        n = POPUP_MAX;
+    for (size_t i = 0; i < (size_t)a->W * a->H; i++) /* the screen behind at 30% */
+        a->cv.px[i] = (uint8_t)(a->cv.px[i] * 30 / 100);
+    int w = 424, h = 16 + n * 56 + 16;
+    int x = (a->W - w) / 2, y = (a->H - h) / 2;
+    canvas_fill(&a->cv, x, y, w, h, G_CARTA);
+    int first = 1;
+    for (;;) {
+        for (int i = 0; i < n; i++)
+            ui_menu_row(&a->cv, x + 16, y + 16 + i * 56, w - 32, rows[i].label, rows[i].value, rows[i].icon, i == sel);
+        if (first)
+            full(a, REFRESH_PARTIAL);
+        else
+            display_update(&a->cv, (Rect){ x, y, w, h }, REFRESH_PARTIAL);
+        first = 0;
+        for (;;) {
+            int raw;
+            Key k = wait_key(a, &raw);
+            if (k == K_UP) {
+                sel = sel > 0 ? sel - 1 : n - 1;
+                break;
+            }
+            if (k == K_DOWN) {
+                sel = sel < n - 1 ? sel + 1 : 0;
+                break;
+            }
+            if (k == K_SELECT || k == K_RIGHT)
+                return sel;
+            if (k == K_BACK || k == K_MENU || k == K_HOME || k == K_LEFT || k == K_TIMEOUT || k == K_QUIT)
+                return -1;
+        }
+    }
+}
+
 /* ----------------------------------------------------------- list screen */
 
 typedef struct {
@@ -486,6 +524,17 @@ static void draw_page(App *a)
     snprintf(pos, sizeof pos, "%d di %d", p, t);
     if (page_has_bookmark(a))
         draw_bookmark_corner(a);
+    if (a->goal_min > 0) { /* goal of the day reached: "■ 30 min oggi" at the top, in the middle */
+        int m = minutes_today(a);
+        if (m >= a->goal_min) {
+            char t[32];
+            snprintf(t, sizeof t, "%d min oggi", m);
+            int tw = font_text_width(FACE_MONO, 16, t);
+            int x = (a->W - (8 + 6 + tw)) / 2;
+            canvas_fill(&a->cv, x, 20, 8, 8, G_SMOG);
+            font_draw_text(&a->cv, FACE_MONO, 16, x + 14, ui_baseline(FACE_MONO, 16, 15, 19.2f), t, G_CENERE, 0);
+        }
+    }
     ui_progress(&a->cv, a->lp.margin_x, a->W - 2 * a->lp.margin_x, a->H, NULL, pos, NULL, percent_of(a) / 100.0,
                 G_VELO);
 }
@@ -618,7 +667,7 @@ static int step(const int *list, int n, int v, int dir)
 static void key_test(App *a);
 
 enum {
-    S_GOAL, S_YEAR, S_FONT, S_SIZE, S_LINE, S_MARGIN, S_FLASH, S_VIEW, /* page 1, as in Figma */
+    S_GOALS, S_GOAL, S_YEAR, S_FONT, S_SIZE, S_LINE, S_MARGIN, S_VIEW, /* page 1, as in Figma */
     S_NAME, S_WIFI, S_DATE, S_INFO, S_KINDLE,                          /* page 2 */
     S_N
 };
@@ -626,25 +675,26 @@ enum {
 typedef struct {
     int page, group_top, row_top; /* group_top: y of the group label, 0 = same group as before */
     const char *group, *label;
+    int stepper; /* value shown as "‹  value  ›", changed with left/right; otherwise value + arrow */
 } SetItem;
 
 /* "04 · Impostazioni": header, title, groups (label + rows of 56 px), "Pagina 1 di 2" at the bottom.
- * Positions from the two frames: page 1 LETTURA label at 150, rows from 174; ASPETTO label at 314,
- * rows from 338. Page 2 SISTEMA label at 142, rows from 166. Texts exactly as in the frames. */
+ * Positions from the two frames: page 1 LETTURA label at 150, rows from 174; ASPETTO label at 370,
+ * rows from 394. Page 2 SISTEMA label at 142, rows from 166. Texts exactly as in the frames. */
 static const SetItem SET[S_N] = {
-    { 0, 150, 174, "Lettura", "Obbiettivo giornaliero" }, /* texts verbatim from Figma */
-    { 0, 0, 230, NULL, "Libri da leggere quest’anno" },
-    { 0, 314, 338, "Aspetto", "Carattere" },
-    { 0, 0, 394, NULL, "Dimensione" },
-    { 0, 0, 450, NULL, "Interlinea" },
-    { 0, 0, 506, NULL, "Margini" },
-    { 0, 0, 562, NULL, "Refresh completo" },
-    { 0, 0, 618, NULL, "Visualizzazione" },
-    { 1, 142, 166, "Sistema", "Nome dispositivo" },
-    { 1, 0, 222, NULL, "Wi-Fi" },
-    { 1, 0, 278, NULL, "Data e ora" },
-    { 1, 0, 334, NULL, "Informazioni" },
-    { 1, 0, 390, NULL, "Torna al kindle" },
+    { 0, 150, 174, "Lettura", "Guarda gli obiettivi", 0 }, /* texts verbatim from Figma */
+    { 0, 0, 230, NULL, "Obiettivo giornaliero", 1 },
+    { 0, 0, 286, NULL, "Libri da leggere nell’anno", 1 },
+    { 0, 370, 394, "Aspetto", "Carattere", 1 },
+    { 0, 0, 450, NULL, "Dimensione", 1 },
+    { 0, 0, 506, NULL, "Interlinea", 1 },
+    { 0, 0, 562, NULL, "Margini", 1 },
+    { 0, 0, 618, NULL, "Visualizzazione", 1 },
+    { 1, 142, 166, "Sistema", "Nome dispositivo", 0 },
+    { 1, 0, 222, NULL, "Wi-Fi", 0 },
+    { 1, 0, 278, NULL, "Data e ora", 0 },
+    { 1, 0, 334, NULL, "Informazioni", 0 },
+    { 1, 0, 390, NULL, "Torna al kindle", 0 },
 };
 
 /* Wi-Fi of the Kindle: -1 unknown (simulator), 0 off, 1 on. */
@@ -674,18 +724,12 @@ static void set_value(App *a, int i, char *out, size_t n)
 {
     out[0] = 0;
     switch (i) {
-    case S_GOAL: snprintf(out, n, "%d minuti", a->goal_min); break;
+    case S_GOAL: snprintf(out, n, "%d m", a->goal_min); break;
     case S_YEAR: snprintf(out, n, "%d", a->books_year); break;
     case S_FONT: snprintf(out, n, "Literata"); break;
     case S_SIZE: snprintf(out, n, "%d pt", a->lp.size); break;
-    case S_LINE: snprintf(out, n, "%d,%d", a->lp.line_pct / 100, a->lp.line_pct % 100 / 10); break;
+    case S_LINE: snprintf(out, n, "%d,%d pt", a->lp.line_pct / 100, a->lp.line_pct % 100 / 10); break;
     case S_MARGIN: snprintf(out, n, "%s", MARGIN_NAMES[closest(MARGINS, 3, a->lp.margin_x)]); break;
-    case S_FLASH:
-        if (a->flash_every == 1)
-            snprintf(out, n, "ogni pagina");
-        else
-            snprintf(out, n, "ogni %d pagine", a->flash_every);
-        break;
     case S_VIEW: snprintf(out, n, "Copertine"); break;
     case S_NAME: snprintf(out, n, "%s", a->name); break;
     case S_WIFI: {
@@ -709,10 +753,13 @@ static void set_value(App *a, int i, char *out, size_t n)
 
 static void set_row(App *a, int i, int focus)
 {
-    char v[160];
+    char v[160], w[180];
     set_value(a, i, v, sizeof v);
-    ui_menu_row(&a->cv, 32, SET[i].row_top, a->W - 64, SET[i].label, v,
-                ICON_ARROW, focus); /* as in Figma: every row has the arrow */
+    if (SET[i].stepper) { /* as in Figma: "‹  30 m  ›", no arrow */
+        snprintf(w, sizeof w, "\xE2\x80\xB9  %s  \xE2\x80\xBA", v);
+        ui_menu_row(&a->cv, 32, SET[i].row_top, a->W - 64, SET[i].label, w, ICON_NONE, focus);
+    } else
+        ui_menu_row(&a->cv, 32, SET[i].row_top, a->W - 64, SET[i].label, v, ICON_ARROW, focus);
 }
 
 /* Change a setting by one step (dir +1 / -1). Returns 1 if the reading page must be laid out again. */
@@ -724,7 +771,6 @@ static int set_change(App *a, int i, int dir)
     case S_SIZE: a->lp.size = step(SIZES, NSIZES, a->lp.size, dir); break;
     case S_LINE: a->lp.line_pct = step(LINES, NLINES, a->lp.line_pct, dir); break;
     case S_MARGIN: a->lp.margin_x = step(MARGINS, 3, a->lp.margin_x, dir); break;
-    case S_FLASH: a->flash_every = step(FLASHES, NFLASHES, a->flash_every, dir); break;
     case S_WIFI: {
         int w = wifi_state();
         if (w >= 0)
@@ -737,10 +783,18 @@ static int set_change(App *a, int i, int dir)
     return i == S_SIZE || i == S_LINE || i == S_MARGIN;
 }
 
+/* "Pagina N di M" at the bottom of a full screen, as in the Footer of Figma. */
+static void page_footer(App *a, const char *text)
+{
+    int tw = font_text_width(FACE_MONO, 16, text);
+    font_draw_text(&a->cv, FACE_MONO, 16, (a->W - tw) / 2, ui_baseline(FACE_MONO, 16, a->H - 8 - 19.2f, 19.2f), text,
+                   G_CENERE, 0);
+}
+
 static void settings_draw(App *a, int page, int sel)
 {
     canvas_clear(&a->cv, G_CARTA);
-    home_header(a, NULL);
+    ui_header(&a->cv, a->name, NULL, -1); /* as in the frame: no minutes in the header here */
     ui_title(&a->cv, 48, "Impostazioni");
     for (int i = 0; i < S_N; i++) {
         if (SET[i].page != page)
@@ -751,13 +805,13 @@ static void settings_draw(App *a, int page, int sel)
     }
     char pg[32];
     snprintf(pg, sizeof pg, "Pagina %d di 2", page + 1);
-    int tw = font_text_width(FACE_MONO, 16, pg);
-    font_draw_text(&a->cv, FACE_MONO, 16, (a->W - tw) / 2, ui_baseline(FACE_MONO, 16, a->H - 8 - 19.2f, 19.2f), pg,
-                   G_CENERE, 0);
+    page_footer(a, pg);
 }
 
 /* The settings screen. Up/down move, centre and right go to the next value, left to the previous one,
  * Back closes. Returns 1 to rescan the books, 2 to go back to the Kindle (timeout), 0 otherwise. */
+static int goals_run(App *a);
+
 static int settings_run(App *a)
 {
     int sel = 0, shown = -1, relaid = 0, result = 0;
@@ -765,7 +819,7 @@ static int settings_run(App *a)
         int page = SET[sel].page;
         if (page != shown) {
             settings_draw(a, page, sel);
-            full(a, shown < 0 ? REFRESH_FULL : REFRESH_PARTIAL);
+            full(a, REFRESH_FULL);
             shown = page;
         }
         int raw, old = sel;
@@ -785,12 +839,17 @@ static int settings_run(App *a)
                 result = 2;
                 break;
             }
-            relaid |= set_change(a, sel, k == K_LEFT ? -1 : 1);
-            if (sel == S_GOAL) { /* the bar in the header changes too */
-                settings_draw(a, page, sel);
-                full(a, REFRESH_PARTIAL);
+            if (sel == S_GOALS) {
+                if (k != K_SELECT && k != K_RIGHT)
+                    continue;
+                if (goals_run(a) == 2) {
+                    result = 2;
+                    break;
+                }
+                shown = -1; /* draw the settings again */
                 continue;
             }
+            relaid |= set_change(a, sel, k == K_LEFT ? -1 : 1);
             set_row(a, sel, 1);
             display_update(&a->cv, (Rect){ 32, SET[sel].row_top, a->W - 64, 56 }, REFRESH_PARTIAL);
             continue;
@@ -812,6 +871,274 @@ static int settings_run(App *a)
     if (relaid)
         relayout(a);
     return result;
+}
+
+/* ------------------------------------------------------------ goals */
+
+/* Reading history, from the sessions in letture.tsv: seconds read per day for the last HIST_DAYS days
+ * (index 0 = today). */
+#define HIST_DAYS 800
+typedef struct {
+    int secs[HIST_DAYS];
+} History;
+
+static long day_number(long long t)
+{
+    time_t tt = (time_t)t;
+    struct tm tm;
+    localtime_r(&tt, &tm);
+    return (long)((t + tm.tm_gmtoff) / 86400);
+}
+
+static void history_add(History *h, long today, long long st, long long en)
+{
+    if (en <= st || en - st > 12 * 3600)
+        return;
+    while (st < en) {
+        long d = day_number(st);
+        time_t tt = (time_t)st;
+        struct tm tm;
+        localtime_r(&tt, &tm);
+        long long end_of_day = st + (86400 - (tm.tm_hour * 3600 + tm.tm_min * 60 + tm.tm_sec));
+        long long e = en < end_of_day ? en : end_of_day;
+        long i = today - d;
+        if (i >= 0 && i < HIST_DAYS)
+            h->secs[i] += (int)(e - st);
+        st = e;
+    }
+}
+
+static void history_load(App *a, History *h)
+{
+    memset(h, 0, sizeof *h);
+    long long now = time(NULL);
+    long today = day_number(now);
+    if (g_sim) { /* as in the Figma frame: goal reached most days, 18 minutes today */
+        for (int i = 1; i < 40; i++)
+            h->secs[i] = (i % 7 == 3 || i == 15) ? 12 * 60 : 35 * 60;
+        h->secs[0] = 18 * 60;
+        return;
+    }
+    char path[700];
+    snprintf(path, sizeof path, "%s/letture.tsv", a->data);
+    char *s = read_file(path, NULL);
+    for (char *p = s; p && *p;) {
+        long long st = 0, en = 0;
+        if (sscanf(p, "%lld\t%lld", &st, &en) == 2)
+            history_add(h, today, st, en);
+        char *nl = strchr(p, '\n');
+        if (!nl)
+            break;
+        p = nl + 1;
+    }
+    free(s);
+    if (a->book && a->session_start)
+        history_add(h, today, a->session_start, now);
+}
+
+static void bar(Canvas *c, int x, int y, int w, double frac)
+{
+    if (frac < 0)
+        frac = 0;
+    if (frac > 1)
+        frac = 1;
+    canvas_fill(c, x, y, w, 8, G_CARTA);
+    canvas_fill(c, x, y, (int)(w * frac + 0.5), 8, G_NERO);
+    canvas_frame(c, x, y, w, 8, 2, G_NERO);
+}
+
+static void text_right(Canvas *c, Face f, int size, int right, int base, const char *s, uint8_t ink)
+{
+    font_draw_text(c, f, size, right - font_text_width(f, size, s), base, s, ink, 0);
+}
+
+/* Books finished this year: the ones at 100% whose last reading is in this year. */
+static int books_read_this_year(App *a)
+{
+    if (g_sim)
+        return 9; /* as in the frame */
+    time_t now = time(NULL);
+    struct tm tn;
+    localtime_r(&now, &tn);
+    int n = 0;
+    for (int i = 0; i < a->lib.n; i++) {
+        const LibEntry *e = &a->lib.e[i];
+        if (e->percent < 100 || e->last_read <= 0)
+            continue;
+        time_t t = (time_t)e->last_read;
+        struct tm tm;
+        localtime_r(&t, &tm);
+        n += tm.tm_year == tn.tm_year;
+    }
+    return n;
+}
+
+enum { G_ROW_GOAL, G_ROW_YEAR, G_ROWS };
+#define GOALS_ROW_TOP 641
+
+static void goals_row(App *a, int i, int focus)
+{
+    char v[64];
+    if (i == G_ROW_GOAL)
+        snprintf(v, sizeof v, "\xE2\x80\xB9  %d m  \xE2\x80\xBA", a->goal_min);
+    else
+        snprintf(v, sizeof v, "\xE2\x80\xB9  %d  \xE2\x80\xBA", a->books_year);
+    ui_menu_row(&a->cv, 32, GOALS_ROW_TOP + i * 56, a->W - 64,
+                i == G_ROW_GOAL ? "Obiettivo giornaliero" : "Libri da leggere nell’anno", v, ICON_NONE, focus);
+}
+
+/* "06 · Obiettivi": today, the series of days, the month, the year, and the two goals to set.
+ * Positions and texts from the Figma frame. */
+static void goals_draw(App *a, int sel)
+{
+    static const char *GIORNI[] = { "dom", "lun", "mar", "mer", "gio", "ven", "sab" };
+    static const char *MESI[] = { "gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic" };
+    static const char *MESI_LUNGHI[] = { "Gennaio", "Febbraio", "Marzo",     "Aprile",  "Maggio",   "Giugno",
+                                         "Luglio",  "Agosto",   "Settembre", "Ottobre", "Novembre", "Dicembre" };
+    static const char *LETTERE[] = { "L", "M", "M", "G", "V", "S", "D" };
+    Canvas *c = &a->cv;
+    History *h = xmalloc(sizeof *h);
+    history_load(a, h);
+    time_t now = time(NULL);
+    struct tm tn;
+    localtime_r(&now, &tn);
+    int goal_s = a->goal_min * 60;
+    char buf[128];
+
+    canvas_clear(c, G_CARTA);
+    ui_header(c, a->name, NULL, -1);
+    ui_title(c, 48, "Obiettivi");
+
+    /* Oggi */
+    snprintf(buf, sizeof buf, "Oggi - %s %d %s", GIORNI[tn.tm_wday], tn.tm_mday, MESI[tn.tm_mon]);
+    ui_group_label(c, 52, 150, buf);
+    int today_min = h->secs[0] / 60;
+    snprintf(buf, sizeof buf, "%d min", today_min);
+    font_draw_text(c, FACE_SANS_MEDIUM, 28, 52, ui_baseline(FACE_SANS_MEDIUM, 28, 174, 33.6f), buf, G_NERO, 0);
+    int mw = font_text_width(FACE_SANS_MEDIUM, 28, buf);
+    if (today_min < a->goal_min)
+        snprintf(buf, sizeof buf, "di %d \xC2\xB7 mancano %d min", a->goal_min, a->goal_min - today_min);
+    else
+        snprintf(buf, sizeof buf, "di %d", a->goal_min);
+    font_draw_text(c, FACE_SANS, 16, 52 + mw + 10, ui_baseline(FACE_SANS, 16, 186, 20), buf, G_CENERE, 0);
+    bar(c, 52, 216, 496, a->goal_min > 0 ? (double)today_min / a->goal_min : 0);
+
+    /* series: days in a row with the goal reached (today counts once reached) */
+    int streak = 0, record = 0, run = 0;
+    for (int i = h->secs[0] >= goal_s ? 0 : 1; i < HIST_DAYS && h->secs[i] >= goal_s && goal_s > 0; i++)
+        streak++;
+    for (int i = HIST_DAYS - 1; i >= 0; i--) {
+        run = goal_s > 0 && h->secs[i] >= goal_s ? run + 1 : 0;
+        if (run > record)
+            record = run;
+    }
+    int wd = (tn.tm_wday + 6) % 7; /* 0 = Monday */
+    long week = 0;
+    for (int i = 0; i <= wd; i++)
+        week += h->secs[i];
+    snprintf(buf, sizeof buf, streak == 1 ? "%d giorno di fila" : "%d giorni di fila", streak);
+    font_draw_text(c, FACE_SANS_MEDIUM, 20, 52, ui_baseline(FACE_SANS_MEDIUM, 20, 224, 25), buf, G_NERO, 0);
+    snprintf(buf, sizeof buf, "record %d \xC2\xB7 settimana %ld h %02ld", record, week / 3600, week % 3600 / 60);
+    text_right(c, FACE_MONO, 16, 548, ui_baseline(FACE_MONO, 16, 228, 19.2f), buf, G_CENERE);
+
+    /* calendar of the month */
+    snprintf(buf, sizeof buf, "%s %d", MESI_LUNGHI[tn.tm_mon], tn.tm_year + 1900);
+    ui_group_label(c, 52, 269, buf);
+    for (int i = 0; i < 7; i++) {
+        int lw = font_text_width(FACE_MONO, 16, LETTERE[i]);
+        font_draw_text(c, FACE_MONO, 16, 52 + i * 34 + (24 - lw) / 2, ui_baseline(FACE_MONO, 16, 293, 19.2f),
+                       LETTERE[i], G_CENERE, 0);
+    }
+    struct tm first = tn;
+    first.tm_mday = 1;
+    first.tm_hour = 12;
+    mktime(&first);
+    int off = (first.tm_wday + 6) % 7;
+    static const int MDAYS[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    int y = tn.tm_year + 1900;
+    int ndays = MDAYS[tn.tm_mon] + (tn.tm_mon == 1 && ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0));
+    for (int d = 1; d <= ndays; d++) {
+        int cell = off + d - 1;
+        int x = 52 + (cell % 7) * 34, cy = 315 + (cell / 7) * 30;
+        int ago = tn.tm_mday - d;
+        if (ago > 0) { /* past day: black = goal reached, grey = read less, dot = not read */
+            int sct = ago < HIST_DAYS ? h->secs[ago] : 0;
+            if (goal_s > 0 && sct >= goal_s)
+                canvas_fill(c, x, cy, 24, 24, G_NERO);
+            else if (sct > 0)
+                canvas_fill(c, x, cy, 24, 24, G_FUMO);
+            else
+                canvas_disc(c, x + 12, cy + 12, 2, G_FUMO);
+        } else if (ago == 0) { /* today: frame, filled from the bottom as far as the goal is reached */
+            double f = goal_s > 0 ? (double)h->secs[0] / goal_s : 0;
+            if (f > 1)
+                f = 1;
+            int fh = (int)(24 * f + 0.5);
+            canvas_fill(c, x, cy + 24 - fh, 24, fh, f >= 1 ? G_NERO : G_CENERE);
+            canvas_frame(c, x, cy, 24, 24, 3, G_NERO);
+        } else
+            canvas_disc(c, x + 12, cy + 12, 2, G_FUMO);
+    }
+    /* legend */
+    canvas_fill(c, 52, 498, 10, 10, G_NERO);
+    font_draw_text(c, FACE_MONO, 16, 70, ui_baseline(FACE_MONO, 16, 493, 19.2f), "raggiunto", G_CENERE, 0);
+    canvas_fill(c, 165, 498, 10, 10, G_CENERE);
+    font_draw_text(c, FACE_MONO, 16, 183, ui_baseline(FACE_MONO, 16, 493, 19.2f), "letto meno", G_CENERE, 0);
+    canvas_frame(c, 287, 498, 10, 10, 2, G_NERO);
+    font_draw_text(c, FACE_MONO, 16, 305, ui_baseline(FACE_MONO, 16, 493, 19.2f), "oggi", G_CENERE, 0);
+
+    /* this year */
+    ui_group_label(c, 52, 532, "Quest'anno");
+    int read = books_read_this_year(a);
+    snprintf(buf, sizeof buf, "%d libr%s lett%s di %d", read, read == 1 ? "o" : "i", read == 1 ? "o" : "i",
+             a->books_year);
+    font_draw_text(c, FACE_SANS_MEDIUM, 20, 52, ui_baseline(FACE_SANS_MEDIUM, 20, 556, 25), buf, G_NERO, 0);
+    int ydays = 365 + ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0);
+    double expected = (double)a->books_year * (tn.tm_yday + 1) / ydays;
+    text_right(c, FACE_MONO, 16, 548, ui_baseline(FACE_MONO, 16, 560, 19.2f),
+               read + 0.5 >= expected ? "in linea" : "in ritardo", G_CENERE);
+    bar(c, 52, 589, 504, a->books_year > 0 ? (double)read / a->books_year : 0);
+
+    /* Imposta */
+    ui_group_label(c, 52, 617, "Imposta");
+    for (int i = 0; i < G_ROWS; i++)
+        goals_row(a, i, i == sel);
+    page_footer(a, "Pagina 1 di 1");
+    free(h);
+}
+
+/* The goals screen. Up/down move between the two goals, left/right (and centre) change them.
+ * Returns 2 to go back to the Kindle (timeout), 0 otherwise. */
+static int goals_run(App *a)
+{
+    int sel = 0;
+    goals_draw(a, sel);
+    full(a, REFRESH_FULL);
+    for (;;) {
+        int raw;
+        Key k = wait_key(a, &raw);
+        if (k == K_NONE)
+            continue;
+        if (k == K_UP || k == K_DOWN) {
+            int old = sel;
+            sel = (sel + 1) % G_ROWS;
+            goals_row(a, old, 0);
+            goals_row(a, sel, 1);
+            display_update(&a->cv, (Rect){ 32, GOALS_ROW_TOP, a->W - 64, 112 }, REFRESH_PARTIAL);
+        } else if (k == K_LEFT || k == K_RIGHT || k == K_SELECT) {
+            int dir = k == K_LEFT ? -1 : 1;
+            if (sel == G_ROW_GOAL)
+                a->goal_min = step(GOALS, NGOALS, a->goal_min, dir);
+            else
+                a->books_year = step(YEARS, NYEARS, a->books_year, dir);
+            save_prefs(a);
+            goals_draw(a, sel); /* bars, calendar and year depend on the goals */
+            full(a, REFRESH_PARTIAL);
+        } else if (k == K_BACK || k == K_MENU || k == K_HOME)
+            return 0;
+        else if (k == K_TIMEOUT || k == K_QUIT)
+            return 2;
+    }
 }
 
 /* ------------------------------------------------------------ keyboard */
@@ -1793,19 +2120,17 @@ static int move_books(App *a, LibEntry *focus)
         r = list_run(a, a->name, "Aggiungi alla raccolta", items, a->lib.n, 0, NULL);
     if (r >= 0) {
         LibEntry *e = books[r];
+        /* as in Figma: "Crea nuova raccolta" (+), then the collections (›) */
         char (*names)[128] = xcalloc(64, 128);
-        int nc = collections(a, names, 64);
-        ListItem *dest = xcalloc(nc + 2, sizeof(ListItem));
-        dest[0].label = "Nessuna raccolta";
+        int nc = collections(a, names, POPUP_MAX - 1);
+        Row *dest = xcalloc(nc + 1, sizeof(Row));
+        dest[0] = (Row){ "Crea nuova raccolta", "", ICON_PLUS };
         for (int i = 0; i < nc; i++)
-            dest[i + 1].label = names[i];
-        dest[nc + 1].label = "Crea nuova raccolta";
-        char title[160];
-        snprintf(title, sizeof title, "«%s» nella raccolta", e->title);
-        int d = list_run(a, a->name, title, dest, nc + 2, 0, NULL);
+            dest[i + 1] = (Row){ names[i], "", ICON_ARROW };
+        int d = popup_run(a, dest, nc + 1, nc > 0 ? 1 : 0);
         char target[128] = "";
         int ok = d >= 0;
-        if (d == nc + 1)
+        if (d == 0)
             ok = create_collection(a, target, sizeof target);
         else if (d > 0)
             snprintf(target, sizeof target, "%s", names[d - 1]);
@@ -1869,11 +2194,11 @@ static void mark_finished(App *a, LibEntry *e)
  * Returns 1 to read the library again, 2 to exit, 0 otherwise. */
 static int home_menu(App *a, LibEntry *focus)
 {
-    enum { H_SORT, H_GOAL, H_NEWCOLL, H_ADDCOLL, H_FINISHED, H_SETTINGS, H_N };
+    enum { H_NEWCOLL, H_SORT, H_GOAL, H_ADDCOLL, H_FINISHED, H_SETTINGS, H_N };
     Row rows[H_N] = {
+        { "Crea nuova raccolta", "", ICON_PLUS },
         { "Ordina per", "", ICON_NONE },
         { "Obbiettivo giornaliero", "", ICON_NONE },
-        { "Crea nuova raccolta", "", ICON_PLUS },
         { "Aggiungi alla raccolta", "", ICON_ARROW },
         { "Salva come finito", "", ICON_PLUS },
         { "Tutte le impostazioni", "", ICON_ARROW },

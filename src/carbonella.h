@@ -18,7 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define CARBONELLA_VERSION "0.4.1"
+#define CARBONELLA_VERSION "0.5.0"
 
 /* ------------------------------------------------------------------ util */
 

@@ -2,6 +2,30 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Finché siamo a `0.x` tutto può cambiare.
 
+## v0.5.0 · 2026-11-17 · "Obiettivi"
+
+Simone ha migliorato i frame in Figma ("ho migliorato tutto, aggiorna ora"). Riportati parola per parola.
+
+- **Nuova schermata Obiettivi** (frame "06 · Obiettivi"), da Impostazioni → *Guarda gli obiettivi*:
+  - minuti letti oggi, barra verso l'obiettivo, "mancano N min";
+  - giorni di fila con l'obiettivo raggiunto, record, minuti della settimana;
+  - calendario del mese: nero = raggiunto, grigio = letto meno, riquadro = oggi (si riempie dal basso);
+  - libri finiti quest'anno su quelli da leggere, "in linea" o "in ritardo", barra;
+  - *Imposta*: Obiettivo giornaliero e Libri da leggere nell'anno, con sinistra/destra.
+- **Lettura**: quando l'obiettivo del giorno è raggiunto, in alto al centro compare "■ 30 min oggi"
+  (frame "02 · Lettura · obiettivo raggiunto").
+- **Menu della Home**: nuovo ordine, *Crea nuova raccolta* in cima.
+- **Aggiungi alla raccolta**: ora è un piccolo pannello al centro, sopra la Home sbiadita (frame
+  "00 Home Menù Raccolta"), con *Crea nuova raccolta* e l'elenco delle raccolte.
+  "Nessuna raccolta" non c'è più, perché non è nel design.
+- **Impostazioni**:
+  - pagina 1: *Guarda gli obiettivi*, *Obiettivo giornaliero*, *Libri da leggere nell'anno*, poi Aspetto;
+  - i valori sono tutti "‹ valore ›";
+  - interlinea scritta come "1,5 pt";
+  - tolta la riga *Refresh completo*, che non è più nel frame (la chiave `lampeggio_ogni` resta nel file
+    di configurazione);
+  - nell'intestazione non ci sono più i minuti di oggi, come nel frame.
+
 ## v0.4.1 · 2026-11-17
 
 Simone ha cambiato il menu della Home in Figma mentre preparavo la v0.4.0: ora è come il nuovo frame.

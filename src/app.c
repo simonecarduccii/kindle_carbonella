@@ -1117,8 +1117,7 @@ static void goals_draw(App *a, int sel)
     ui_group_label(c, 52, 617, "Imposta");
     for (int i = 0; i < G_ROWS; i++)
         goals_row(a, i, i == sel);
-    page_footer(a, "Pagina 1 di 1");
-    free(h);
+    free(h); /* no footer: removed from the frame on 17 nov */
 }
 
 /* The goals screen. Up/down move between the two goals, left/right (and centre) change them.

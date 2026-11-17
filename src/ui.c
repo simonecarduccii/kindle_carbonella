@@ -113,7 +113,7 @@ void ui_progress(Canvas *c, int x, int w, int y_bottom, const char *left, const 
     int done = (int)lrint(w * (frac < 0 ? 0 : frac > 1 ? 1 : frac));
     if (done < 2 && frac > 0)
         done = 2;
-    canvas_fill(c, x, bar_y, done, 3, G_GRAFITE);
+    canvas_fill(c, x, bar_y, done, 3, G_NERO); /* black, as in Figma since 17 nov */
 }
 
 /* "›" of the menu rows: 4.44 x 8.48 */

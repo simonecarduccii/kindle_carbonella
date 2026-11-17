@@ -2,6 +2,15 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Finché siamo a `0.x` tutto può cambiare.
 
+## v0.5.3 · 2026-11-17
+
+Piccole modifiche di Simone in Figma ("ho fatto dei minimi cambiamenti aggiorna tutto"). Le ho trovate
+confrontando i frame con la copia congelata delle 09:36 nella pagina Evoluzione.
+
+- La barra di avanzamento in lettura (e nel menu di lettura) ora è nera, prima era grafite.
+- La schermata Obiettivi non ha più "Pagina 1 di …" in fondo.
+- Le copertine della Home hanno cambiato di 1 px in Figma: sono arrotondamenti, non portati.
+
 ## v0.5.2 · 2026-11-17
 
 - **Standby di nuovo funzionante**: premendo il tasto di accensione compare la copertina del libro.

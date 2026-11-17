@@ -1602,6 +1602,52 @@ static int goto_page_run(App *a)
     }
 }
 
+/* "Pagine del cartaceo": the pages of the paper edition, shown on the Home, written by hand (Simone,
+ * 17 nov). Same keys as "Vai a pagina…"; 0 = not known (the value of the table or of the EPUB comes
+ * back at the next reading of the library). */
+static int print_pages_run(App *a)
+{
+    LibEntry *e = a->entry;
+    int p = e->print_pages > 0 ? e->print_pages : e->pages > 0 ? e->pages : 0; /* start near the screen pages */
+    int first = 1;
+    for (;;) {
+        canvas_clear(&a->cv, G_CARTA);
+        ui_header(&a->cv, a->book->title, NULL, -1);
+        ui_title(&a->cv, 48, "Pagine del cartaceo");
+        char num[16];
+        snprintf(num, sizeof num, "%d", p);
+        const char *of = p > 0 ? "pagine sulla Home" : "non note: sulla Home le pagine a schermo";
+        int tw = font_text_width(FACE_MONO_MEDIUM, 64, num);
+        font_draw_text(&a->cv, FACE_MONO_MEDIUM, 64, (a->W - tw) / 2, 330, num, G_NERO, 0);
+        tw = font_text_width(FACE_MONO, 20, of);
+        font_draw_text(&a->cv, FACE_MONO, 20, (a->W - tw) / 2, 380, of, G_GRAFITE, a->W - 64);
+        static const char *hint[] = { "‹ ›  una pagina", "su e giù  dieci pagine", "tasti laterali  cento pagine",
+                                      "centro per salvare, Indietro per annullare" };
+        for (int i = 0; i < 4; i++) {
+            int hw = font_text_width(FACE_MONO, 14, hint[i]);
+            font_draw_text(&a->cv, FACE_MONO, 14, (a->W - hw) / 2, 480 + i * 26, hint[i], G_CENERE, 0);
+        }
+        full(a, first ? REFRESH_FULL : REFRESH_PARTIAL);
+        first = 0;
+        int raw;
+        Key k = wait_key(a, &raw);
+        int d = k == K_RIGHT ? 1 : k == K_LEFT ? -1 : k == K_UP ? 10 : k == K_DOWN ? -10 : k == K_NEXT ? 100
+                : k == K_PREV ? -100 : 0;
+        if (d) {
+            p += d;
+            p = p < 0 ? 0 : p > 9999 ? 9999 : p;
+        } else if (k == K_SELECT) {
+            if (print_pages_set(a->data, e, p) != 0) {
+                message(a, "Non riesco a salvare le pagine", strerror(errno), REFRESH_PARTIAL);
+                input_wait(3000, NULL);
+                return 0;
+            }
+            return 1;
+        } else if (k == K_BACK || k == K_MENU || k == K_HOME || k == K_TIMEOUT || k == K_QUIT)
+            return 0;
+    }
+}
+
 /* ------------------------------------------------------------ bookmarks */
 
 /* dati/segnalibri.tsv: path, spine, byte, page, a few words of the page. */
@@ -1853,7 +1899,7 @@ static int reader_menu(App *a)
 {
     a->goal_note_until = 0; /* the note is not redrawn over the menu */
     int sel = 0;
-    enum { M_MARK, M_SEARCH, M_SIZE, M_GOTO, M_MARKS, M_TOC, M_N };
+    enum { M_MARK, M_SEARCH, M_SIZE, M_GOTO, M_MARKS, M_TOC, M_PRINT, M_N };
     Row rows[M_N] = {
         { "Aggiungi segnalibro", "", ICON_PLUS },
         { "Cerca nel libro", "", ICON_ARROW },
@@ -1861,6 +1907,7 @@ static int reader_menu(App *a)
         { "Vai a pagina…", "", ICON_ARROW },
         { "Segnalibri", "", ICON_ARROW },
         { "Indice", "", ICON_ARROW },
+        { "Pagine del cartaceo", "", ICON_ARROW }, /* Simone, 17 nov: written by hand */
     };
     int redraw = 1;
     for (;;) {
@@ -1874,6 +1921,10 @@ static int reader_menu(App *a)
         book_pages(a, &p, &t);
         snprintf(rows[M_SIZE].value, sizeof rows[M_SIZE].value, "%d pt", a->lp.size);
         snprintf(rows[M_GOTO].value, sizeof rows[M_GOTO].value, "pag. %d di %d", p, t);
+        if (a->entry->print_pages > 0)
+            snprintf(rows[M_PRINT].value, sizeof rows[M_PRINT].value, "%d", a->entry->print_pages);
+        else
+            rows[M_PRINT].value[0] = 0;
         int nb = bookmarks_load(a, NULL, 0);
         if (nb)
             snprintf(rows[M_MARKS].value, sizeof rows[M_MARKS].value, "%d", nb);
@@ -1900,6 +1951,7 @@ static int reader_menu(App *a)
         case M_GOTO: goto_page_run(a); return -1;
         case M_MARKS: bookmarks_run(a); return -1;
         case M_TOC: show_toc(a); return -1;
+        case M_PRINT: print_pages_run(a); return -1;
         case PANEL_END: return k == K_HOME ? GO_LIBRARY : GO_EXIT;
         default: return -1;
         }

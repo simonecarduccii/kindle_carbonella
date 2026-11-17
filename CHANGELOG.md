@@ -2,6 +2,15 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Finché siamo a `0.x` tutto può cambiare.
 
+## v0.5.1 · 2026-11-17
+
+Simone ha aggiunto una voce al menu della Home mentre installavo la v0.5.0.
+
+- **Menu della Home**: nuova voce *Archivia libro* (›), prima di *Tutte le impostazioni*. Sposta il libro
+  con il riquadro nella raccolta "Archivio", creata se non c'è. Il libro lascia la Home ma resta sul
+  Kindle e si riprende con *Aggiungi alla raccolta*.
+- *Salva come finito* ora ha la freccia (›) invece del +, come nel frame.
+
 ## v0.5.0 · 2026-11-17 · "Obiettivi"
 
 Simone ha migliorato i frame in Figma ("ho migliorato tutto, aggiorna ora"). Riportati parola per parola.

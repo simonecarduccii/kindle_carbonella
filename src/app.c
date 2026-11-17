@@ -2167,6 +2167,47 @@ static int move_books(App *a, LibEntry *focus)
     return moved;
 }
 
+/* "Archivia libro": the focused book goes into the "Archivio" collection (created if missing), so it
+ * leaves the Home but stays on the Kindle. It comes back with "Aggiungi alla raccolta". */
+#define ARCHIVE_NAME "Archivio"
+static int archive_book(App *a, LibEntry *e)
+{
+    char dir[1024], mark[1100];
+    snprintf(dir, sizeof dir, "%s/" ARCHIVE_NAME, a->books);
+    snprintf(mark, sizeof mark, "%s/" COLL_MARK, dir);
+    if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
+        message(a, "Non riesco ad archiviare il libro", strerror(errno), REFRESH_PARTIAL);
+        input_wait(4000, NULL);
+        return 0;
+    }
+    FILE *f = fopen(mark, "a");
+    if (f)
+        fclose(f);
+    const char *base = strrchr(e->path, '/');
+    base = base ? base + 1 : e->path;
+    char np[1200];
+    snprintf(np, sizeof np, "%s/%s", dir, base);
+    if (strcmp(np, e->path) == 0)
+        return 0;
+    if (access(np, F_OK) == 0) {
+        message(a, "C'è già un file con questo nome", base, REFRESH_PARTIAL);
+        input_wait(4000, NULL);
+        return 0;
+    }
+    if (rename(e->path, np) != 0) {
+        message(a, "Non riesco ad archiviare il libro", strerror(errno), REFRESH_PARTIAL);
+        input_wait(4000, NULL);
+        return 0;
+    }
+    log_msg("archived %s -> %s", e->path, np);
+    free(e->path);
+    e->path = xstrdup(np);
+    library_save_positions(&a->lib, a->data);
+    message(a, "Libro archiviato", e->title, REFRESH_PARTIAL);
+    input_wait(1500, NULL);
+    return 1;
+}
+
 static void sort_step(App *a, int dir) { a->sort = (a->sort + (dir > 0 ? 1 : 2)) % 3; }
 
 static void goal_step(App *a, int dir)
@@ -2194,13 +2235,14 @@ static void mark_finished(App *a, LibEntry *e)
  * Returns 1 to read the library again, 2 to exit, 0 otherwise. */
 static int home_menu(App *a, LibEntry *focus)
 {
-    enum { H_NEWCOLL, H_SORT, H_GOAL, H_ADDCOLL, H_FINISHED, H_SETTINGS, H_N };
+    enum { H_NEWCOLL, H_SORT, H_GOAL, H_ADDCOLL, H_FINISHED, H_ARCHIVE, H_SETTINGS, H_N };
     Row rows[H_N] = {
         { "Crea nuova raccolta", "", ICON_PLUS },
         { "Ordina per", "", ICON_NONE },
         { "Obbiettivo giornaliero", "", ICON_NONE },
         { "Aggiungi alla raccolta", "", ICON_ARROW },
-        { "Salva come finito", "", ICON_PLUS },
+        { "Salva come finito", "", ICON_ARROW },
+        { "Archivia libro", "", ICON_ARROW },
         { "Tutte le impostazioni", "", ICON_ARROW },
     };
     char ver[48];
@@ -2228,6 +2270,12 @@ static int home_menu(App *a, LibEntry *focus)
                 mark_finished(a, focus);
                 return 1;
             }
+            message(a, "Scegli prima un libro", "Metti il riquadro su una copertina e riapri il menu.", REFRESH_PARTIAL);
+            input_wait(3000, NULL);
+            return changed;
+        case H_ARCHIVE:
+            if (focus)
+                return archive_book(a, focus) ? 1 : changed;
             message(a, "Scegli prima un libro", "Metti il riquadro su una copertina e riapri il menu.", REFRESH_PARTIAL);
             input_wait(3000, NULL);
             return changed;

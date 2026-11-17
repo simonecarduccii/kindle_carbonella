@@ -44,7 +44,7 @@ sim: build/carbonella-sim
 # A quick tour with the books of the Figma Home: grid, Home menu (new collection with the on-screen
 # keyboard, add a book to a collection, save as finished, settings), a book: bookmark, go to page,
 # bookmarks, search, font size; standby and wake up.
-PROVA_TASTI ?= R,M,D,R,D,R,B,M,S,D,D,R,S,D,D,R,R,S,W,R,M,D,D,D,S,S,R,M,D,D,D,D,S,W,M,D,D,D,D,D,S,S,L,L,L,L,D,R,B,D,D,R,N,B,S,M,S,M,D,D,D,S,U,R,S,M,D,D,D,D,S,S,M,D,S,D,R,R,R,R,R,S,U,L,L,L,S,D,D,D,D,R,R,S,S,M,D,D,R,B,Z,A,B
+PROVA_TASTI ?= R,M,D,R,D,R,B,M,S,D,D,R,S,D,D,R,R,S,W,R,M,D,D,D,S,S,R,M,D,D,D,D,S,W,R,M,D,D,D,D,D,S,W,M,D,D,D,D,D,D,S,S,L,L,L,L,D,R,B,D,D,R,N,B,S,M,S,M,D,D,D,S,U,R,S,M,D,D,D,D,S,S,M,D,S,D,R,R,R,R,R,S,U,L,L,L,S,D,D,D,D,R,R,S,S,M,D,D,R,B,Z,A,B
 prova: build/carbonella-sim build/libri/prova.epub
 	rm -rf build/schermate build/base build/libreria && mkdir -p build/base/dati
 	cp -r pacchetto/carbonella/fonts pacchetto/carbonella/carbonella.conf build/base/

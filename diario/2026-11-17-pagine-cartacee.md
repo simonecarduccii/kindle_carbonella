@@ -57,15 +57,16 @@ italiana dello stesso editore dell'EPUB, preferendo il sito dell'editore.
 | La morte della Pizia, Friedrich Dürrenmatt | 68 | Adelphi, Piccola Biblioteca 216 | [adelphi.it](https://www.adelphi.it/libro/9788845902963) (stesso ISBN dell'EPUB) |
 | Follia, Patrick McGrath | 296 | Adelphi, gli Adelphi 408 | [adelphi.it](https://www.adelphi.it/libro/9788845926983) (libreriauniversitaria dice 304: vale l'editore) |
 | Così parlò Zarathustra, Friedrich Nietzsche | 425 | Adelphi, Piccola Biblioteca 36 | [adelphi.it](https://www.adelphi.it/libro/9788845906558): "pp. XVII-425", conto le 425 arabe |
-| 1984, George Orwell | 336 | Mondadori 2015, ISBN 9788804507451 | [casadellibro](https://www.casadellibro.com.co/libro-1984/9788804507451/969782) |
+| 1984, George Orwell | 321 | Mondadori, Oscar Moderni Cult 2019, trad. Nicola Gardini | [ibs.it](https://www.ibs.it/1984-libro-george-orwell/e/9788804719137) |
 
 **Dubbi:**
 
 - *Mr Gwyn*: l'EPUB è dell'edizione I Narratori 2011, ma nessun catalogo letto ne dà le pagine. Ho usato
   l'edizione economica, che ha lo stesso testo.
-- *1984*: incerto. L'EPUB (ISBN 9788852021558) non dice di quale edizione cartacea è. Mondadori ne ha
-  diverse: 336 pagine (2015), 430 (2020, ISBN 9788804730378). Va confermato guardando il traduttore
-  nell'EPUB.
+- *1984*: prima avevo messo 336 (Mondadori 2015, traduzione Manferlotti). Il front end ha letto il
+  frontespizio dell'EPUB: "Nuova traduzione e postfazione di Nicola Gardini", © 2019. Il cartaceo con
+  quella traduzione è l'Oscar Moderni Cult del 2019 (ISBN 9788804719137): 321 pagine secondo IBS.
+  L'ebook su mondadori.it dice 348 pagine, ma sono pagine dell'ebook, non del libro di carta.
 - *I miei ritagli* e *You are Jailbroken* non sono libri: niente pagine.
 
 Il log sul Kindle dopo l'installazione del front end (e14f54f, 18:30 UTC) diceva "gives paper pages for 2

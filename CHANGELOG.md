@@ -2,6 +2,12 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Dalla 1.0.0 le versioni MINORE aggiungono cose, le CORREZIONE sistemano.
 
+## v1.0.1 · 2026-11-17
+
+- **Il tasto Home risveglia il Kindle** dallo standby, come il tasto di accensione (Simone). Funziona
+  finché il Kindle è nello stato "screen saver"; nel sonno profondo il processore è spento e lo
+  risveglia solo il tasto di accensione.
+
 ## v1.0.0 · 2026-11-17 · "Carbonella"
 
 La prima versione completa: le copertine sono tutte nel formato dello schermo e ogni libro ha la sua.

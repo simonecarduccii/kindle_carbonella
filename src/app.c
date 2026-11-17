@@ -204,9 +204,20 @@ static void standby(App *a)
         cover_draw(&a->cv, 0, 0, a->W, a->H, "Carbonella", a->name, "", 0);
     full(a, REFRESH_FULL);
     log_msg("standby");
+    time_t home_at = 0;
     for (;;) {
         Key k = input_wait(-1, NULL);
         if (k == K_WAKE || k == K_QUIT)
+            break;
+        /* v1.0.1: the Home key wakes the Kindle too (Simone). We ask powerd for the same thing the power
+         * button does; powerd then sends outOfScreenSaver (K_WAKE). It only works while the Kindle is
+         * in screen saver: in deep sleep the CPU is off and only the power button wakes it. */
+        if (k == K_HOME && !g_sim && time(NULL) - home_at >= 3) {
+            home_at = time(NULL);
+            log_msg("home key: wake up");
+            if (system("powerd_test -p >/dev/null 2>&1") != 0)
+                log_msg("powerd_test -p failed");
+        } else if (k == K_HOME && g_sim)
             break;
     }
     log_msg("wake up");

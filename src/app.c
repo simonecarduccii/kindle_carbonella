@@ -1102,7 +1102,7 @@ static void text_right(Canvas *c, Face f, int size, int right, int base, const c
 static int books_read_this_year(App *a)
 {
     if (g_sim)
-        return 9; /* as in the frame */
+        return 3; /* as in the frame */
     time_t now = time(NULL);
     struct tm tn;
     localtime_r(&now, &tn);
@@ -1120,7 +1120,7 @@ static int books_read_this_year(App *a)
 }
 
 enum { G_ROW_GOAL, G_ROW_YEAR, G_ROWS };
-#define GOALS_ROW_TOP 641
+#define GOALS_ROW_TOP 654
 
 static void goals_row(App *a, int i, int focus)
 {
@@ -1133,14 +1133,21 @@ static void goals_row(App *a, int i, int focus)
                 i == G_ROW_GOAL ? "Obiettivo giornaliero" : "Libri da leggere nell’anno", v, ICON_NONE, focus);
 }
 
-/* "06 · Obiettivi": today, the series of days, the month, the year, and the two goals to set.
- * Positions and texts from the Figma frame. */
+/* "06 · Obiettivi" as redrawn by Simone on 17 nov (Figma 102:2118): today with this week's total and a
+ * thin bar, the month as numbered cells, series and record, this year's books as numbered boxes, and
+ * the two goals to set. Texts, positions and greys from the frame. */
+#define INK_333 204 /* #333 captions */
+static int centered_x(Face f, int size, int x, int w, const char *s)
+{
+    return x + (w - font_text_width(f, size, s)) / 2;
+}
+
 static void goals_draw(App *a, int sel)
 {
-    static const char *GIORNI[] = { "dom", "lun", "mar", "mer", "gio", "ven", "sab" };
-    static const char *MESI[] = { "gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic" };
-    static const char *MESI_LUNGHI[] = { "Gennaio", "Febbraio", "Marzo",     "Aprile",  "Maggio",   "Giugno",
-                                         "Luglio",  "Agosto",   "Settembre", "Ottobre", "Novembre", "Dicembre" };
+    static const char *GIORNI[] = { "DOM", "LUN", "MAR", "MER", "GIO", "VEN", "SAB" };
+    static const char *MESI[] = { "GEN", "FEB", "MAR", "APR", "MAG", "GIU", "LUG", "AGO", "SET", "OTT", "NOV", "DIC" };
+    static const char *MESI_LUNGHI[] = { "GENNAIO", "FEBBRAIO", "MARZO",     "APRILE",  "MAGGIO",   "GIUGNO",
+                                         "LUGLIO",  "AGOSTO",   "SETTEMBRE", "OTTOBRE", "NOVEMBRE", "DICEMBRE" };
     static const char *LETTERE[] = { "L", "M", "M", "G", "V", "S", "D" };
     Canvas *c = &a->cv;
     History *h = xmalloc(sizeof *h);
@@ -1152,49 +1159,37 @@ static void goals_draw(App *a, int sel)
     char buf[128];
 
     canvas_clear(c, G_CARTA);
-    ui_header(c, a->name, NULL, -1);
-    ui_title(c, 48, "Obiettivi");
+    ui_header(c, "Obiettivi", NULL, -1);
 
-    /* Oggi */
-    snprintf(buf, sizeof buf, "Oggi - %s %d %s", GIORNI[tn.tm_wday], tn.tm_mday, MESI[tn.tm_mon]);
-    ui_group_label(c, 52, 150, buf);
+    /* Oggi: "18 min" on the left, "questa settimana 1h30m" on the right, then the bar */
+    snprintf(buf, sizeof buf, "OGGI \xC2\xB7 %s %d %s", GIORNI[tn.tm_wday], tn.tm_mday, MESI[tn.tm_mon]);
+    font_draw_text(c, FACE_SANS_MEDIUM, 13, 32, ui_baseline(FACE_SANS_MEDIUM, 13, 80, 17), buf, G_CENERE, 0);
     int today_min = h->secs[0] / 60;
     snprintf(buf, sizeof buf, "%d min", today_min);
-    font_draw_text(c, FACE_SANS_MEDIUM, 28, 52, ui_baseline(FACE_SANS_MEDIUM, 28, 174, 33.6f), buf, G_NERO, 0);
-    int mw = font_text_width(FACE_SANS_MEDIUM, 28, buf);
-    if (today_min < a->goal_min)
-        snprintf(buf, sizeof buf, "di %d \xC2\xB7 mancano %d min", a->goal_min, a->goal_min - today_min);
-    else
-        snprintf(buf, sizeof buf, "di %d", a->goal_min);
-    font_draw_text(c, FACE_SANS, 16, 52 + mw + 10, ui_baseline(FACE_SANS, 16, 186, 20), buf, G_CENERE, 0);
-    bar(c, 52, 216, 496, a->goal_min > 0 ? (double)today_min / a->goal_min : 0);
-
-    /* series: days in a row with the goal reached (today counts once reached) */
-    int streak = 0, record = 0, run = 0;
-    for (int i = h->secs[0] >= goal_s ? 0 : 1; i < HIST_DAYS && h->secs[i] >= goal_s && goal_s > 0; i++)
-        streak++;
-    for (int i = HIST_DAYS - 1; i >= 0; i--) {
-        run = goal_s > 0 && h->secs[i] >= goal_s ? run + 1 : 0;
-        if (run > record)
-            record = run;
-    }
+    font_draw_text(c, FACE_SANS_MEDIUM, 32, 32, ui_baseline(FACE_SANS_MEDIUM, 32, 97, 42), buf, G_NERO, 0);
     int wd = (tn.tm_wday + 6) % 7; /* 0 = Monday */
     long week = 0;
     for (int i = 0; i <= wd; i++)
         week += h->secs[i];
-    snprintf(buf, sizeof buf, streak == 1 ? "%d giorno di fila" : "%d giorni di fila", streak);
-    font_draw_text(c, FACE_SANS_MEDIUM, 20, 52, ui_baseline(FACE_SANS_MEDIUM, 20, 224, 25), buf, G_NERO, 0);
-    snprintf(buf, sizeof buf, "record %d \xC2\xB7 settimana %ld h %02ld", record, week / 3600, week % 3600 / 60);
-    text_right(c, FACE_MONO, 16, 548, ui_baseline(FACE_MONO, 16, 228, 19.2f), buf, G_CENERE);
+    if (week >= 3600)
+        snprintf(buf, sizeof buf, "%ldh%02ldm", week / 3600, week % 3600 / 60);
+    else
+        snprintf(buf, sizeof buf, "%ldm", week / 60);
+    int vw = font_text_width(FACE_SANS_MEDIUM, 30, buf);
+    font_draw_text(c, FACE_SANS_MEDIUM, 30, 568 - vw, ui_baseline(FACE_SANS_MEDIUM, 30, 99, 39), buf, G_NERO, 0);
+    text_right(c, FACE_MONO, 13, 568 - vw - 8, ui_baseline(FACE_MONO, 13, 117, 17), "questa settimana", INK_333);
+    double f = a->goal_min > 0 ? (double)today_min / a->goal_min : 0;
+    if (f > 1)
+        f = 1;
+    canvas_fill(c, 32, 147, 536, 3, G_VELO);
+    canvas_fill(c, 32, 147, (int)(536 * f + 0.5), 3, G_GRAFITE);
 
-    /* calendar of the month */
+    /* calendar of the month: numbered cells 68 x 24 */
     snprintf(buf, sizeof buf, "%s %d", MESI_LUNGHI[tn.tm_mon], tn.tm_year + 1900);
-    ui_group_label(c, 52, 269, buf);
-    for (int i = 0; i < 7; i++) {
-        int lw = font_text_width(FACE_MONO, 16, LETTERE[i]);
-        font_draw_text(c, FACE_MONO, 16, 52 + i * 34 + (24 - lw) / 2, ui_baseline(FACE_MONO, 16, 293, 19.2f),
-                       LETTERE[i], G_CENERE, 0);
-    }
+    font_draw_text(c, FACE_SANS_MEDIUM, 13, 32, ui_baseline(FACE_SANS_MEDIUM, 13, 168, 17), buf, G_CENERE, 0);
+    for (int i = 0; i < 7; i++)
+        font_draw_text(c, FACE_MONO_MEDIUM, 13, centered_x(FACE_MONO_MEDIUM, 13, 34 + i * 76, 68, LETTERE[i]),
+                       ui_baseline(FACE_MONO_MEDIUM, 13, 190, 17), LETTERE[i], G_CENERE, 0);
     struct tm first = tn;
     first.tm_mday = 1;
     first.tm_hour = 12;
@@ -1205,51 +1200,77 @@ static void goals_draw(App *a, int sel)
     int ndays = MDAYS[tn.tm_mon] + (tn.tm_mon == 1 && ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0));
     for (int d = 1; d <= ndays; d++) {
         int cell = off + d - 1;
-        int x = 52 + (cell % 7) * 34, cy = 315 + (cell / 7) * 30;
+        int x = 34 + (cell % 7) * 76, cy = 213 + (cell / 7) * 30;
         int ago = tn.tm_mday - d;
-        if (ago > 0) { /* past day: black = goal reached, grey = read less, dot = not read */
-            int sct = ago < HIST_DAYS ? h->secs[ago] : 0;
-            if (goal_s > 0 && sct >= goal_s)
-                canvas_fill(c, x, cy, 24, 24, G_NERO);
-            else if (sct > 0)
-                canvas_fill(c, x, cy, 24, 24, G_FUMO);
-            else
-                canvas_disc(c, x + 12, cy + 12, 2, G_FUMO);
-        } else if (ago == 0) { /* today: frame, filled from the bottom as far as the goal is reached */
-            double f = goal_s > 0 ? (double)h->secs[0] / goal_s : 0;
-            if (f > 1)
-                f = 1;
-            int fh = (int)(24 * f + 0.5);
-            canvas_fill(c, x, cy + 24 - fh, 24, fh, f >= 1 ? G_NERO : G_CENERE);
-            canvas_frame(c, x, cy, 24, 24, 3, G_NERO);
-        } else
-            canvas_disc(c, x + 12, cy + 12, 2, G_FUMO);
+        int sct = ago >= 0 && ago < HIST_DAYS ? h->secs[ago] : 0;
+        uint8_t fill = G_CARTA, ink = G_CENERE; /* not read, or still to come */
+        if (ago >= 0 && goal_s > 0 && sct >= goal_s) { /* goal reached */
+            fill = G_CENERE;
+            ink = G_CARTA;
+        } else if (ago >= 0 && sct > 0) /* read less */
+            fill = G_LEGGERO;
+        canvas_fill(c, x, cy, 68, 24, fill);
+        if (ago == 0) /* today */
+            canvas_frame(c, x, cy, 68, 24, 3, G_CENERE);
+        snprintf(buf, sizeof buf, "%d", d);
+        font_draw_text(c, FACE_MONO_MEDIUM, 13, centered_x(FACE_MONO_MEDIUM, 13, x, 68, buf),
+                       ui_baseline(FACE_MONO_MEDIUM, 13, cy + 3.5f, 17), buf, ink, 0);
     }
-    /* legend */
-    canvas_fill(c, 52, 498, 10, 10, G_NERO);
-    font_draw_text(c, FACE_MONO, 16, 70, ui_baseline(FACE_MONO, 16, 493, 19.2f), "raggiunto", G_CENERE, 0);
-    canvas_fill(c, 165, 498, 10, 10, G_CENERE);
-    font_draw_text(c, FACE_MONO, 16, 183, ui_baseline(FACE_MONO, 16, 493, 19.2f), "letto meno", G_CENERE, 0);
-    canvas_frame(c, 287, 498, 10, 10, 2, G_NERO);
-    font_draw_text(c, FACE_MONO, 16, 305, ui_baseline(FACE_MONO, 16, 493, 19.2f), "oggi", G_CENERE, 0);
 
-    /* this year */
-    ui_group_label(c, 52, 532, "Quest'anno");
+    /* series and record: days in a row with the goal reached (today counts once reached) */
+    int streak = 0, record = 0, run = 0;
+    for (int i = h->secs[0] >= goal_s ? 0 : 1; i < HIST_DAYS && h->secs[i] >= goal_s && goal_s > 0; i++)
+        streak++;
+    for (int i = HIST_DAYS - 1; i >= 0; i--) {
+        run = goal_s > 0 && h->secs[i] >= goal_s ? run + 1 : 0;
+        if (run > record)
+            record = run;
+    }
+    const int stat_x[2] = { 32, 216 };
+    const int stat_v[2] = { streak, record };
+    const char *stat_l[2] = { streak == 1 ? "giorno di fila" : "giorni di fila", "record giorni di fila" };
+    for (int i = 0; i < 2; i++) {
+        snprintf(buf, sizeof buf, "%d", stat_v[i]);
+        font_draw_text(c, FACE_SANS_MEDIUM, 30, stat_x[i], ui_baseline(FACE_SANS_MEDIUM, 30, 405, 39), buf, G_NERO, 0);
+        int w = font_text_width(FACE_SANS_MEDIUM, 30, buf);
+        font_draw_text(c, FACE_MONO, 13, stat_x[i] + w + 8, ui_baseline(FACE_MONO, 13, 423, 17), stat_l[i], INK_333, 0);
+    }
+    canvas_fill(c, 32, 462, 536, 2, G_NERO);
+
+    /* this year: the books as numbered boxes, the ones read first */
+    font_draw_text(c, FACE_SANS_MEDIUM, 13, 32, ui_baseline(FACE_SANS_MEDIUM, 13, 482, 17), "QUEST\xE2\x80\x99" "ANNO",
+                   G_CENERE, 0);
     int read = books_read_this_year(a);
     snprintf(buf, sizeof buf, "%d libr%s lett%s di %d", read, read == 1 ? "o" : "i", read == 1 ? "o" : "i",
              a->books_year);
-    font_draw_text(c, FACE_SANS_MEDIUM, 20, 52, ui_baseline(FACE_SANS_MEDIUM, 20, 556, 25), buf, G_NERO, 0);
+    font_draw_text(c, FACE_SANS_MEDIUM, 20, 32, ui_baseline(FACE_SANS_MEDIUM, 20, 502, 26), buf, G_NERO, 0);
     int ydays = 365 + ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0);
     double expected = (double)a->books_year * (tn.tm_yday + 1) / ydays;
-    text_right(c, FACE_MONO, 16, 548, ui_baseline(FACE_MONO, 16, 560, 19.2f),
-               read + 0.5 >= expected ? "in linea" : "in ritardo", G_CENERE);
-    bar(c, 52, 589, 504, a->books_year > 0 ? (double)read / a->books_year : 0);
+    text_right(c, FACE_MONO_MEDIUM, 16, 568, ui_baseline(FACE_MONO_MEDIUM, 16, 506, 21),
+               read + 0.5 >= expected ? "in linea" : "in ritardo", G_NERO);
+    int nb = a->books_year > 0 ? a->books_year : 0;
+    int cols = nb <= 12 ? 6 : (nb + 1) / 2; /* two rows, as in the frame; more books = narrower boxes */
+    float pitch = cols > 1 ? (536.0f - 83.0f * 6 / cols) / (cols - 1) : 0;
+    int bw = (int)lrintf(83.0f * 6 / cols);
+    if (cols > 6) {
+        pitch = (536.0f + 7) / cols;
+        bw = (int)(pitch - 7);
+    }
+    for (int i = 0; i < nb; i++) {
+        int bx = (int)lrintf(32 + (i % cols) * pitch), by = 536 + (i / cols) * 32;
+        int done = i < read;
+        canvas_fill(c, bx, by, bw, 24, done ? G_CENERE : G_LEGGERO);
+        snprintf(buf, sizeof buf, "%d", i + 1);
+        if (font_text_width(FACE_MONO_MEDIUM, 13, buf) <= bw - 2)
+            font_draw_text(c, FACE_MONO_MEDIUM, 13, centered_x(FACE_MONO_MEDIUM, 13, bx, bw, buf),
+                           ui_baseline(FACE_MONO_MEDIUM, 13, by + 4, 17), buf, done ? G_CARTA : G_CENERE, 0);
+    }
 
     /* Imposta */
-    ui_group_label(c, 52, 617, "Imposta");
+    ui_group_label(c, 52, 630, "Imposta");
     for (int i = 0; i < G_ROWS; i++)
         goals_row(a, i, i == sel);
-    free(h); /* no footer: removed from the frame on 17 nov */
+    free(h); /* no footer, as in the frame */
 }
 
 /* The goals screen. Up/down move between the two goals, left/right (and centre) change them.

@@ -170,6 +170,14 @@ static void message(App *a, const char *title, const char *line2, RefreshKind ki
     display_update(&a->cv, (Rect){ x, y, w, h }, kind);
 }
 
+/* The generated cover depends on title and author, so it stays the same if the file moves. */
+static int book_style(const LibEntry *e)
+{
+    char key[600];
+    snprintf(key, sizeof key, "%s|%s", e->title ? e->title : "", e->author ? e->author : "");
+    return cover_style_for(key);
+}
+
 /* ------------------------------------------------------------ standby */
 
 /* The Kindle is going to sleep: the cover of the book full screen (Simone's design); when it
@@ -182,7 +190,7 @@ static void standby(App *a)
     LibEntry *e = a->entry && a->book ? a->entry : (a->lib.n > 0 ? &a->lib.e[0] : NULL);
     canvas_clear(&a->cv, G_CARTA);
     if (e)
-        cover_draw(&a->cv, 0, 0, a->W, a->H, e->title, e->author, cover_style_for(e->path), 0);
+        cover_draw(&a->cv, 0, 0, a->W, a->H, e->title, e->author, book_style(e), 0);
     else
         cover_draw(&a->cv, 0, 0, a->W, a->H, "Carbonella", a->name, 0, 0);
     full(a, REFRESH_FULL);
@@ -612,8 +620,8 @@ static Next run_reader(App *a)
     /* bytes per page: start from the total pages counted last time, refine with each chapter */
     a->cal_bytes = a->cal_pages = 0;
     if (a->entry->pages > 0 && a->book->total_size > 0) {
-        a->cal_bytes = (double)a->book->total_size;
-        a->cal_pages = a->entry->pages;
+        a->cal_pages = 8; /* weighs like a short chapter: the real chapters soon count more */
+        a->cal_bytes = (double)a->book->total_size / a->entry->pages * a->cal_pages;
     }
     a->cal_last_spine = -1;
     int spine = a->entry->percent >= 0 ? a->entry->spine : 0;
@@ -846,14 +854,14 @@ static void draw_cell(App *a, const Cell *c, float x, float y, int focus)
     frame_clip(cv, x, y, focus);
     if (c->kind == CELL_BOOK) {
         cover_draw(cv, x + 4.3f + d, y + 4.3f + d, 172.064f, 249.492f, c->e->title, c->e->author,
-                   cover_style_for(c->e->path), 2);
+                   book_style(c->e), 2);
     } else {
         /* "Raccolte": a pile of three covers, the most recent in front */
         static const float off[3][2] = { { 0, 6.24f }, { 4.3f, 1.94f }, { 8.6f, -2.37f } };
         for (int i = 2; i >= 0; i--) {
             const LibEntry *e = c->pile[i] ? c->pile[i] : c->pile[0];
             float px = x + 4.3f + off[i][0] + d, py = y + 4.3f + off[i][1] + d;
-            cover_draw(cv, px, py, 167.762f, 243.255f, e->title, e->author, cover_style_for(e->path), 1);
+            cover_draw(cv, px, py, 167.762f, 243.255f, e->title, e->author, book_style(e), 1);
             canvas_frame(cv, (int)lrintf(px), (int)lrintf(py), 168, 243, 1, G_NERO);
         }
     }

@@ -229,12 +229,19 @@ static void touch_screensaver(void)
         log_msg("touchScreenSaverTimeout failed");
 }
 
+/* Simone (17 nov): the automatic standby must not start while he is reading. With a book open the
+ * "Standby automatico dopo" timer is replaced by READING_STANDBY_MS without keys, a safety net for a
+ * reader who fell asleep. Meanwhile powerd's own timer (about 10 min) is touched every
+ * READING_TOUCH_MS, so it cannot fire in the middle of a long page either. */
+#define READING_STANDBY_MS (30 * 60000)
+#define READING_TOUCH_MS (4 * 60000)
+
 /* "Standby automatico dopo": no key for standby_min minutes. powerd on the K4 has no lipc property for
  * the power button, so we use its test tool to simulate a press ("powerd_test -p"); powerd then sends
  * goingToScreenSaver and the cover appears as usual. */
 static int auto_standby(App *a)
 {
-    log_msg("no key for %d min: standby", a->standby_min);
+    log_msg("no key for %d min: standby", a->book ? READING_STANDBY_MS / 60000 : a->standby_min);
     if (system("powerd_test -p >/dev/null 2>&1") != 0) {
         log_msg("powerd_test -p failed");
         return -1;
@@ -274,11 +281,25 @@ static Key light_standby(App *a)
 static Key wait_key(App *a, int *raw)
 {
     int t = a->standby_seen ? -1 : a->idle_ms, sb = 0;
-    if (!g_sim && a->standby_min > 0 && (t < 0 || a->standby_min * 60000 < t)) {
-        t = a->standby_min * 60000;
+    int reading = a->book != NULL;
+    int limit = reading ? READING_STANDBY_MS : a->standby_min * 60000;
+    if (!g_sim && limit > 0 && (t < 0 || limit < t)) {
+        t = limit;
         sb = 1;
     }
-    Key k = input_wait(t, raw);
+    Key k;
+    if (reading && sb) { /* wait in slices, keeping powerd awake, until a key or the safety net */
+        int left = t;
+        for (;;) {
+            int slice = left < READING_TOUCH_MS ? left : READING_TOUCH_MS;
+            k = input_wait(slice, raw);
+            left -= slice;
+            if (k != K_TIMEOUT || left <= 0)
+                break;
+            touch_screensaver();
+        }
+    } else
+        k = input_wait(t, raw);
     if (k == K_TIMEOUT && sb) {
         Key w = light_standby(a);
         if (w == K_TIMEOUT) { /* powerd's goingToScreenSaver arrives next: standby() shows the cover */

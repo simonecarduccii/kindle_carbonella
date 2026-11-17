@@ -34,6 +34,27 @@ static int battery_percent(void)
     return v;
 }
 
+/* Charging: the battery current is positive while the charger feeds it (K4 yoshi_battery). Read at most
+ * every 30 s. In the simulator, CARBONELLA_CARICA=1 shows the bolt. */
+static int battery_charging(void)
+{
+    if (g_sim)
+        return getenv("CARBONELLA_CARICA") != NULL;
+    static time_t last;
+    static int charging;
+    time_t now = time(NULL);
+    if (last && now - last < 30)
+        return charging;
+    last = now;
+    char *s = read_file("/sys/devices/system/yoshi_battery/yoshi_battery0/battery_current", NULL);
+    int was = charging;
+    charging = s && atoi(s) > 0;
+    if (s && charging != was)
+        log_msg("battery current %d mA: %s", atoi(s), charging ? "charging" : "not charging");
+    free(s);
+    return charging;
+}
+
 void ui_clock(char *out, size_t n)
 {
     if (g_sim) {
@@ -70,6 +91,23 @@ void ui_header(Canvas *c, const char *left, const char *center, double bar)
     if (pct > 0) {
         int fw = (int)lrintf(18.0f * (pct > 100 ? 100 : pct) / 100);
         canvas_fill(c, x + 3, 20, fw < 1 ? 1 : fw, 7, G_NERO);
+    }
+    if (battery_charging()) { /* "In carica" (Simone, 17 nov): a bolt 8 x 14 over the body, white edge */
+        static const float BOLT[12] = { 6, 0, 0, 7.8f, 3.6f, 8, 2, 14, 8, 6.1f, 4.4f, 6 };
+        float bx = x + 8, by = 17 - 0.66f, pts[12];
+        for (int dy = -1; dy <= 1; dy++)
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int i = 0; i < 6; i++) {
+                    pts[2 * i] = bx + BOLT[2 * i] + dx;
+                    pts[2 * i + 1] = by + BOLT[2 * i + 1] + dy;
+                }
+                canvas_polygon(c, pts, 6, G_CARTA);
+            }
+        for (int i = 0; i < 6; i++) {
+            pts[2 * i] = bx + BOLT[2 * i];
+            pts[2 * i + 1] = by + BOLT[2 * i + 1];
+        }
+        canvas_polygon(c, pts, 6, G_NERO);
     }
     char buf[16];
     if (pct >= 0) {
@@ -688,21 +726,31 @@ static void model_einaudi(const Model *m, const char *t, const char *au, const c
 
 static void model_feltrinelli(const Model *m, const char *t, const char *au, const char *pub, int ours)
 {
-    mrect(m, 0, 0, 600, 800, G_SMOG);      /* #666 at the top edge */
-    mrect(m, 0, 29, 600, 771, G_LEGGERO);  /* #CCC panel */
+    /* Simone, 17 nov ("più Feltrinelli style"): a black band 30 px high with #CCC diagonal stripes
+     * (14 px wide, every 28 px, slanted 30 px), then the #CCC panel */
+    mrect(m, 0, 0, 600, 30, G_NERO);
+    for (int k = 0; k * 28 - 30 < 600; k++) {
+        float x0 = k * 28.0f;
+        float st[8] = { m->ox + x0 * m->s,        m->oy,
+                        m->ox + (x0 + 14) * m->s, m->oy,
+                        m->ox + (x0 - 16) * m->s, m->oy + 30 * m->s,
+                        m->ox + (x0 - 30) * m->s, m->oy + 30 * m->s };
+        canvas_polygon(m->c, st, 4, mink(m, G_LEGGERO));
+    }
+    mrect(m, 0, 30, 600, 770, G_LEGGERO); /* #CCC panel */
     int na = model_text(m, FACE_MONO_BOLD, 30, 0.10f, 1.3f, 82, 0, 466, 0, 2, au, 1, G_NERO, 1);
     int nt = model_text(m, FACE_MONO_BOLD, 48, 0, 1.18f, 82, 0, 466, 0, 2, t, 0, G_GRAFITE, 1);
     float nh = lines_h(30, 1.3f, na) + 4 + lines_h(48, 1.18f, nt);
     /* illustration from 73 (square since v1.0.2, as in Simone's reference), then name and title, then the
      * logo at 708: equal gaps */
-    float ih = 496, gap = (708 - 73 - ih - nh) / 2;
+    float ih = 496, gap = (708 - 74 - ih - nh) / 2;
     if (gap < 24) {
         gap = 24;
-        ih = 708 - 73 - nh - 2 * gap;
+        ih = 708 - 74 - nh - 2 * gap;
     }
     if (ih > 40)
-        illustration(m, 52, 73, 496, ih, G_FUMO); /* #AAA */
-    float ntop = 73 + ih + gap;
+        illustration(m, 52, 74, 496, ih, G_FUMO); /* #AAA */
+    float ntop = 74 + ih + gap;
     model_text(m, FACE_MONO_BOLD, 30, 0.10f, 1.3f, 82, ntop, 466, 0, 2, au, 1, G_NERO, 0);
     model_text(m, FACE_MONO_BOLD, 48, 0, 1.18f, 82, ntop + lines_h(30, 1.3f, na) + 4, 466, 0, 2, t, 0, G_GRAFITE, 0);
     float tri[6] = { m->ox + 52 * m->s, m->oy + 735 * m->s, m->ox + 77 * m->s, m->oy + 710 * m->s,
@@ -734,6 +782,7 @@ static void model_mondadori(const Model *m, const char *t, const char *au, const
 {
     mrect(m, 0, 0, 600, 800, 68); /* #BBB */
     mdisc(m, 55, 67, 32, G_GRAFITE); /* logo */
+    mrect(m, 50, 68, 11, 40, 68);    /* the cut in the logo (Simone, 17 nov: "Rectangle 5", #BBB) */
     if (ours) {
         model_text(m, FACE_MONO_BOLD, 16, 0.09f, 1.3f, 100, 38, 477, 0, 1, "Oscar", 1, G_NERO, 0);
         model_text(m, FACE_MONO_BOLD, 16, 0.09f, 1.3f, 100, 59, 477, 0, 1, "Libri", 1, G_NERO, 0);

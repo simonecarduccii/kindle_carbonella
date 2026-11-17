@@ -59,6 +59,8 @@ typedef struct {
     LayoutParams lp;
     int flash_every, idle_ms, goal_min, sort, books_year;
     int standby_min; /* "Standby automatico dopo": minutes without keys, 0 = never */
+    double goal_note_until; /* now_ms() until which "N min oggi" stays on the page (0 = hidden) */
+    long goal_note_day;     /* day on which the goal was last announced */
     int standby_seen; /* the Kindle told us about standby: no need for our own idle exit */
     /* reader */
     Book *book;
@@ -290,6 +292,7 @@ static Key light_standby(App *a)
     return k;
 }
 
+static void draw_page(App *a);
 static Key wait_key(App *a, int *raw)
 {
     int t = a->standby_seen ? -1 : a->idle_ms, sb = 0;
@@ -299,8 +302,21 @@ static Key wait_key(App *a, int *raw)
         t = limit;
         sb = 1;
     }
-    Key k;
-    if (reading && sb) { /* wait in slices, keeping powerd awake, until a key or the safety net */
+    Key k = K_TIMEOUT;
+    int got = 0;
+    if (reading && a->goal_note_until > 0) { /* "N min oggi" goes away after GOAL_NOTE_MS */
+        int left = (int)(a->goal_note_until - now_ms());
+        if (left > 0 && (k = input_wait(left, raw)) != K_TIMEOUT)
+            got = 1;
+        else {
+            a->goal_note_until = 0;
+            draw_page(a);
+            display_update(&a->cv, (Rect){ 0, 0, a->W, 48 }, REFRESH_PARTIAL);
+        }
+    }
+    if (got)
+        ;
+    else if (reading && sb) { /* wait in slices, keeping powerd awake, until a key or the safety net */
         int left = t;
         for (;;) {
             int slice = left < READING_TOUCH_MS ? left : READING_TOUCH_MS;
@@ -650,6 +666,8 @@ static int load_chapter(App *a, int spine, int which_page, uint32_t pos)
     return 0;
 }
 
+#define GOAL_NOTE_MS 5000
+static long day_number(long long t);
 static int page_has_bookmark(App *a);
 static void draw_bookmark_corner(App *a);
 
@@ -666,17 +684,20 @@ static void draw_page(App *a)
     snprintf(pos, sizeof pos, "%d di %d", p, t);
     if (page_has_bookmark(a))
         draw_bookmark_corner(a);
-    if (a->goal_min > 0) { /* goal of the day reached: "■ 30 min oggi" at the top, in the middle */
-        int m = minutes_today(a);
-        if (m >= a->goal_min) {
-            char t[32];
-            snprintf(t, sizeof t, "%d min oggi", m);
-            int tw = font_text_width(FACE_MONO, 16, t);
-            int x = (a->W - (8 + 6 + tw)) / 2;
-            canvas_fill(&a->cv, x, 20, 8, 8, G_NERO); /* black square since v0.6 */
-            font_draw_text(&a->cv, FACE_MONO, 16, x + 14, ui_baseline(FACE_MONO, 16, 15, 19.2f), t, G_CENERE, 0);
-        }
+    /* Simone (17 nov): "■ N min oggi" shows for 5 seconds, only when the daily goal is reached */
+    if (a->goal_min > 0 && a->goal_note_day != day_number(time(NULL)) && minutes_today(a) >= a->goal_min) {
+        a->goal_note_day = day_number(time(NULL));
+        a->goal_note_until = now_ms() + GOAL_NOTE_MS;
     }
+    if (a->goal_note_until > now_ms()) {
+        char t[32];
+        snprintf(t, sizeof t, "%d min oggi", minutes_today(a));
+        int tw = font_text_width(FACE_MONO, 16, t);
+        int x = (a->W - (8 + 6 + tw)) / 2;
+        canvas_fill(&a->cv, x, 20, 8, 8, G_NERO); /* black square since v0.6 */
+        font_draw_text(&a->cv, FACE_MONO, 16, x + 14, ui_baseline(FACE_MONO, 16, 15, 19.2f), t, G_CENERE, 0);
+    } else
+        a->goal_note_until = 0;
     ui_progress(&a->cv, a->lp.margin_x, a->W - 2 * a->lp.margin_x, a->H, NULL, pos, NULL, percent_of(a) / 100.0,
                 G_SMOG); /* track #999 since v0.6 */
 }
@@ -1830,6 +1851,7 @@ static int search_run(App *a)
  * or -1 to keep reading. */
 static int reader_menu(App *a)
 {
+    a->goal_note_until = 0; /* the note is not redrawn over the menu */
     int sel = 0;
     enum { M_MARK, M_SEARCH, M_SIZE, M_GOTO, M_MARKS, M_TOC, M_N };
     Row rows[M_N] = {
@@ -1917,6 +1939,8 @@ static Next run_reader(App *a)
         load_chapter(a, a->spine + 1, 0, 0);
     a->session_start = a->last_turn = time(NULL);
     a->session_pages = 0;
+    if (a->goal_min > 0 && minutes_today(a) >= a->goal_min) /* already reached today: no announcement */
+        a->goal_note_day = day_number(time(NULL));
     a->turns = 0;
     render_page(a, REFRESH_FULL);
     Next next = GO_LIBRARY;

@@ -245,25 +245,29 @@ typedef struct {
 #define PANEL_END -100
 
 /* "Pannello menu": rows over the bottom of the screen, focus = black row.
- * Returns the chosen row; -1 closed; -2 (+ *key) for Left/Right on the 'stepper' row;
+ * Rows in 'steppers' (bit i = row i) show their value as "‹  value  ›" and change with left/right.
+ * Returns the chosen row (in *sel too); -1 closed; -2 (+ *key) for Left/Right on a stepper row;
  * PANEL_END (+ *key) for Home, timeout, quit. */
-static int panel_run(App *a, Row *rows, int n, int sel, const char *footer_l, const char *footer_c,
-                     const char *footer_r, double frac, int stepper, Key *key)
+static int panel_run(App *a, Row *rows, int n, int *selp, const char *footer_l, const char *footer_c,
+                     const char *footer_r, double frac, unsigned steppers, Key *key)
 {
     int h = 1 + 16 + n * 56 + 16 + 48;
     int y0 = a->H - h;
+    int sel = *selp;
     for (;;) {
+        *selp = sel;
         canvas_fill(&a->cv, 0, y0, a->W, h, G_CARTA);
         canvas_fill(&a->cv, 0, y0, a->W, 1, G_CENERE);
         for (int i = 0; i < n; i++) {
             char val[64];
             const char *v = rows[i].value;
-            if (i == sel && i == stepper) {
+            int step = (steppers >> i) & 1;
+            if (step) {
                 snprintf(val, sizeof val, "\xE2\x80\xB9  %s  \xE2\x80\xBA", rows[i].value);
                 v = val;
             }
-            ui_menu_row(&a->cv, 16, y0 + 17 + i * 56, a->W - 32, rows[i].label, v,
-                        i == stepper ? ICON_NONE : rows[i].icon, i == sel);
+            ui_menu_row(&a->cv, 16, y0 + 17 + i * 56, a->W - 32, rows[i].label, v, step ? ICON_NONE : rows[i].icon,
+                        i == sel);
         }
         if (footer_l || footer_r)
             ui_progress(&a->cv, 48, a->W - 96, a->H - 8, footer_l, NULL, footer_r, frac, G_SMOG);
@@ -288,7 +292,7 @@ static int panel_run(App *a, Row *rows, int n, int sel, const char *footer_l, co
                 return sel;
             if (k == K_BACK || k == K_MENU)
                 return -1;
-            if ((k == K_LEFT || k == K_RIGHT) && sel == stepper) {
+            if ((k == K_LEFT || k == K_RIGHT) && ((steppers >> sel) & 1)) {
                 *key = k;
                 return -2;
             }
@@ -1322,7 +1326,7 @@ static int reader_menu(App *a)
         snprintf(left, sizeof left, "%d%%", percent_of(a));
         snprintf(right, sizeof right, "pagina %d di %d", p, t);
         Key k = K_NONE;
-        int r = panel_run(a, rows, M_N, sel, left, NULL, right, percent_of(a) / 100.0, M_SIZE, &k);
+        int r = panel_run(a, rows, M_N, &sel, left, NULL, right, percent_of(a) / 100.0, 1u << M_SIZE, &k);
         switch (r) {
         case -2: /* left/right on the size row */
             change_size(a, k == K_RIGHT ? 1 : -1);
@@ -1489,7 +1493,6 @@ static void pile_add(Cell *c, LibEntry *e)
 
 /* Cells of a view: folder NULL and !read_view = Home; read_view = books already read; else that folder. */
 static int collections(App *a, char names[][128], int max);
-static int to_read_has(App *a, const char *path);
 
 static int build_cells(App *a, const char *folder, int read_view, Cell **out)
 {
@@ -1640,11 +1643,7 @@ static void draw_cell(App *a, const Cell *c, float x, float y, int focus)
             snprintf(left, sizeof left, "%d%%", e->percent);
         else {
             badge = !g_sim && time(NULL) - e->mtime < 7 * 86400; /* arrived this week */
-            if (to_read_has(a, e->path)) {
-                snprintf(left, sizeof left, "Da leggere");
-                badge = 0;
-            } else
-                snprintf(left, sizeof left, badge ? "NUOVO" : "Nuovo");
+            snprintf(left, sizeof left, badge ? "NUOVO" : "Nuovo");
         }
         int p = pages_of(a, e);
         snprintf(right, sizeof right, p == 1 ? "%d pagina" : "%d pagine", p);
@@ -1767,8 +1766,9 @@ static int cmp_entry_title(const void *x, const void *y)
     return strcasecmp(a->title ? a->title : "", b->title ? b->title : "");
 }
 
-/* "Sposta libri": choose a book, then the collection (or none). Returns 1 if a book moved. */
-static int move_books(App *a)
+/* "Aggiungi alla raccolta": the focused book (or, on a collection, a book chosen from the list) goes
+ * into a collection (or out of it). Returns 1 if a book moved. */
+static int move_books(App *a, LibEntry *focus)
 {
     if (a->lib.n == 0)
         return 0;
@@ -1784,7 +1784,13 @@ static int move_books(App *a)
         items[i].value = where[i];
     }
     int moved = 0;
-    int r = list_run(a, a->name, "Sposta libri", items, a->lib.n, 0, NULL);
+    int r = -1;
+    if (focus) {
+        for (int i = 0; i < a->lib.n; i++)
+            if (books[i] == focus)
+                r = i;
+    } else
+        r = list_run(a, a->name, "Aggiungi alla raccolta", items, a->lib.n, 0, NULL);
     if (r >= 0) {
         LibEntry *e = books[r];
         char (*names)[128] = xcalloc(64, 128);
@@ -1795,7 +1801,7 @@ static int move_books(App *a)
             dest[i + 1].label = names[i];
         dest[nc + 1].label = "Crea nuova raccolta";
         char title[160];
-        snprintf(title, sizeof title, "Sposta «%s»", e->title);
+        snprintf(title, sizeof title, "«%s» nella raccolta", e->title);
         int d = list_run(a, a->name, title, dest, nc + 2, 0, NULL);
         char target[128] = "";
         int ok = d >= 0;
@@ -1836,124 +1842,73 @@ static int move_books(App *a)
     return moved;
 }
 
-/* Books to read ("Aggiungi libro da leggere"): dati/da_leggere.tsv, one path per line. */
-static int to_read_has(App *a, const char *path)
+static void sort_step(App *a, int dir) { a->sort = (a->sort + (dir > 0 ? 1 : 2)) % 3; }
+
+static void goal_step(App *a, int dir)
 {
-    char p[700], line[1100];
-    snprintf(p, sizeof p, "%s/da_leggere.tsv", a->data);
-    FILE *f = fopen(p, "r");
-    int found = 0;
-    while (f && !found && fgets(line, sizeof line, f)) {
-        line[strcspn(line, "\r\n")] = 0;
-        found = strcmp(line, path) == 0;
-    }
-    if (f)
-        fclose(f);
-    return found;
+    int i = 0;
+    while (i < NGOALS && GOALS[i] < a->goal_min)
+        i++;
+    i = (i + dir + NGOALS) % NGOALS;
+    a->goal_min = GOALS[i];
 }
 
-static void to_read_toggle(App *a, const char *path)
+/* "Salva come finito": the focused book goes among the books read. */
+static void mark_finished(App *a, LibEntry *e)
 {
-    char p[700], tmp[720], line[1100];
-    snprintf(p, sizeof p, "%s/da_leggere.tsv", a->data);
-    snprintf(tmp, sizeof tmp, "%s.nuovo", p);
-    int had = to_read_has(a, path);
-    FILE *in = fopen(p, "r"), *out = fopen(tmp, "w");
-    if (!out) {
-        if (in)
-            fclose(in);
-        return;
-    }
-    while (in && fgets(line, sizeof line, in)) {
-        line[strcspn(line, "\r\n")] = 0;
-        if (*line && strcmp(line, path) != 0)
-            fprintf(out, "%s\n", line);
-    }
-    if (in)
-        fclose(in);
-    if (!had)
-        fprintf(out, "%s\n", path);
-    fclose(out);
-    rename(tmp, p);
+    e->percent = 100;
+    e->last_read = time(NULL);
+    library_save_positions(&a->lib, a->data);
+    log_msg("marked as finished: %s", e->path);
+    message(a, "Salvato come finito", e->title, REFRESH_PARTIAL);
+    input_wait(1500, NULL);
 }
 
-/* "Aggiungi libro da leggere": the books not started yet; choosing one marks it "Da leggere"
- * (choosing it again removes the mark). Returns 1 if something changed. */
-static int add_to_read(App *a)
+/* Home menu ("00 Home Menù", the instance in Simone's frame): texts, values and icons exactly as in
+ * Figma. 'focus' is the book with the focus in the grid (NULL on a collection).
+ * Returns 1 to read the library again, 2 to exit, 0 otherwise. */
+static int home_menu(App *a, LibEntry *focus)
 {
-    LibEntry **books = xcalloc(a->lib.n + 1, sizeof(LibEntry *));
-    int n = 0;
-    for (int i = 0; i < a->lib.n; i++)
-        if (a->lib.e[i].percent < 0)
-            books[n++] = &a->lib.e[i];
-    if (n == 0) {
-        free(books);
-        message(a, "Nessun libro da iniziare", "Tutti i libri sono già iniziati.", REFRESH_PARTIAL);
-        input_wait(3000, NULL);
-        return 0;
-    }
-    qsort(books, n, sizeof(LibEntry *), cmp_entry_title);
-    ListItem *items = xcalloc(n, sizeof(ListItem));
-    int changed = 0, sel = 0;
-    for (;;) {
-        for (int i = 0; i < n; i++) {
-            items[i].label = books[i]->title;
-            items[i].value = to_read_has(a, books[i]->path) ? "Da leggere" : "";
-        }
-        int r = list_run(a, a->name, "Aggiungi libro da leggere", items, n, sel, NULL);
-        if (r < 0)
-            break;
-        to_read_toggle(a, books[r]->path);
-        changed = 1;
-        sel = r;
-    }
-    free(items);
-    free(books);
-    return changed;
-}
-
-/* Home menu ("00 Home Menù", Pannello menu Property 1=Home): texts, values and icons exactly as in
- * Figma. Returns 1 to read the library again, 2 to exit, 0 otherwise. */
-static int home_menu(App *a)
-{
-    enum { H_SORT, H_GOAL, H_NEWCOLL, H_MOVE, H_TOREAD, H_SETTINGS, H_N };
+    enum { H_SORT, H_GOAL, H_NEWCOLL, H_ADDCOLL, H_FINISHED, H_SETTINGS, H_N };
     Row rows[H_N] = {
-        { "Ordina per", "", ICON_ARROW },
-        { "Obbiettivo giornaliero", "", ICON_ARROW },
+        { "Ordina per", "", ICON_NONE },
+        { "Obbiettivo giornaliero", "", ICON_NONE },
         { "Crea nuova raccolta", "", ICON_PLUS },
-        { "Sposta libri", "", ICON_ARROW },
-        { "Aggiungi libro da leggere", "", ICON_PLUS },
-        { "Impostazioni", "", ICON_PLUS },
+        { "Aggiungi alla raccolta", "", ICON_ARROW },
+        { "Salva come finito", "", ICON_PLUS },
+        { "Tutte le impostazioni", "", ICON_ARROW },
     };
     char ver[48];
     snprintf(ver, sizeof ver, "Carbonella %s", CARBONELLA_VERSION);
-    int sel = 0;
+    int sel = 0, changed = 0;
     for (;;) {
         snprintf(rows[H_SORT].value, sizeof rows[H_SORT].value, "%s", SORTS[a->sort]);
-        snprintf(rows[H_GOAL].value, sizeof rows[H_GOAL].value, "%d minuti", a->goal_min);
+        snprintf(rows[H_GOAL].value, sizeof rows[H_GOAL].value, "%d m", a->goal_min);
         Key k = K_NONE;
-        int r = panel_run(a, rows, H_N, sel, NULL, ver, NULL, 0, -1, &k);
-        if (r >= 0)
-            sel = r;
-        switch (r) {
-        case H_SORT:
-            a->sort = (a->sort + 1) % 3;
-            save_prefs(a);
-            continue;
-        case H_GOAL: {
-            int i = 0;
-            while (i < NGOALS && GOALS[i] <= a->goal_min)
-                i++;
-            a->goal_min = GOALS[i % NGOALS];
-            save_prefs(a);
+        int r = panel_run(a, rows, H_N, &sel, NULL, ver, NULL, 0, (1u << H_SORT) | (1u << H_GOAL), &k);
+        int dir = k == K_LEFT ? -1 : 1;
+        if (r == -2 || r == H_SORT || r == H_GOAL) { /* left/right, or centre = next value */
+            if (sel == H_SORT)
+                sort_step(a, dir);
+            else
+                goal_step(a, dir);
+            save_prefs(a); /* the Home is drawn again when the menu closes */
             continue;
         }
-        case H_NEWCOLL: return create_collection(a, NULL, 0) ? 1 : 0;
-        case H_MOVE: return move_books(a) ? 1 : 0;
-        case H_TOREAD: add_to_read(a); return 0;
-        case H_SETTINGS: return settings_run(a) == 2 ? 2 : 0;
-        case PANEL_END: return k == K_HOME ? 0 : 2;
-        default: return 0;
+        switch (r) {
+        case H_NEWCOLL: return create_collection(a, NULL, 0) ? 1 : changed;
+        case H_ADDCOLL: return move_books(a, focus) ? 1 : changed;
+        case H_FINISHED:
+            if (focus && focus->percent < 100) {
+                mark_finished(a, focus);
+                return 1;
+            }
+            message(a, "Scegli prima un libro", "Metti il riquadro su una copertina e riapri il menu.", REFRESH_PARTIAL);
+            input_wait(3000, NULL);
+            return changed;
+        case H_SETTINGS: return settings_run(a) == 2 ? 2 : changed;
+        case PANEL_END: return k == K_HOME ? changed : 2;
+        default: return changed;
         }
     }
 }
@@ -2000,7 +1955,7 @@ static int grid_view(App *a, const char *folder, int read_view, LibEntry *focus)
                 break;
             }
             if (k == K_MENU) {
-                int m = home_menu(a);
+                int m = home_menu(a, NULL);
                 if (m) {
                     result = m == 1 ? GO_LIBRARY : GO_EXIT;
                     break;
@@ -2053,7 +2008,7 @@ static int grid_view(App *a, const char *folder, int read_view, LibEntry *focus)
             redraw = 1;
             continue;
         case K_MENU: {
-            int m = home_menu(a);
+            int m = home_menu(a, cells[sel].kind == CELL_BOOK ? cells[sel].e : NULL);
             if (m) {
                 result = m == 1 ? GO_LIBRARY : GO_EXIT;
                 goto out;

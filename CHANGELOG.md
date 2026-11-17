@@ -2,6 +2,17 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Finché siamo a `0.x` tutto può cambiare.
 
+## v0.4.1 · 2026-11-17
+
+Simone ha cambiato il menu della Home in Figma mentre preparavo la v0.4.0: ora è come il nuovo frame.
+
+- **Menu della Home**: Ordina per ‹ Più recente ›, Obbiettivo giornaliero ‹ 30 m › (si cambiano con
+  sinistra/destra), Crea nuova raccolta, Aggiungi alla raccolta, Salva come finito, Tutte le impostazioni.
+  - *Aggiungi alla raccolta* e *Salva come finito* valgono per il libro con il riquadro nella Home.
+  - Tolte "Sposta libri" e "Aggiungi libro da leggere" (non sono più nel design).
+- Dimensione carattere nel menu di lettura sempre come "‹ 20 pt ›", come nel frame.
+- Nel simulatore la batteria è al 100%, come nei frame aggiornati.
+
 ## v0.4.0 · 2026-11-17 · "I menu di Figma"
 
 Simone: *"perché se in Figma il menù ha delle scritte tu le devi cambiare"*. Da ora i testi e l'ordine

@@ -18,7 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define CARBONELLA_VERSION "0.4.0"
+#define CARBONELLA_VERSION "0.4.1"
 
 /* ------------------------------------------------------------------ util */
 
@@ -156,7 +156,7 @@ int font_draw_text(Canvas *c, Face f, int size, int x, int baseline, const char 
 
 /* -------------------------------------------------------------------- ui */
 
-extern int g_sim; /* simulator: fixed clock (21:40) and battery (82%), as in the Figma frames */
+extern int g_sim; /* simulator: fixed clock (21:40) and battery (100%), as in the Figma frames */
 
 typedef enum { ICON_NONE, ICON_ARROW, ICON_PLUS } MenuIcon;
 

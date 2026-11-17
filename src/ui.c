@@ -26,7 +26,7 @@ int ui_baseline(Face f, int size, float top, float lh)
 static int battery_percent(void)
 {
     if (g_sim)
-        return 82;
+        return 100; /* as in the Figma frames */
     char *s = read_file("/sys/devices/system/yoshi_battery/yoshi_battery0/battery_capacity", NULL);
     int v = s ? atoi(s) : -1;
     free(s);

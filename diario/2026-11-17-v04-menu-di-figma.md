@@ -13,7 +13,7 @@ ancora, la si fa funzionare, non la si cambia.** (Salvata anche nella memoria de
 
 ## Tempo
 
-01:02–01:15 UTC del 17/11 (circa 15 minuti, Claude).
+01:02–01:25 UTC del 17/11 (circa 25 minuti, Claude), compresa la v0.4.1.
 
 ## Le voci, lette da Figma
 
@@ -49,15 +49,24 @@ Lette direttamente dalle proprietà delle "Voce menu" nei due pannelli (testo, v
 |---|---|---|---|
 | ![](img/2026-11-17-v04-menu-home.png) | ![](img/2026-11-17-v04-menu-lettura.png) | ![](img/2026-11-17-v04-segnalibro.png) | ![](img/2026-11-17-v04-vai-a-pagina.png) |
 
-| Tastiera | Cerca nel libro | Sposta libri | Libri da leggere |
+| Tastiera | Cerca nel libro | Aggiungi alla raccolta | |
 |---|---|---|---|
-| ![](img/2026-11-17-v04-tastiera.png) | ![](img/2026-11-17-v04-cerca.png) | ![](img/2026-11-17-v04-sposta-libri.png) | ![](img/2026-11-17-v04-da-leggere.png) |
+| ![](img/2026-11-17-v04-tastiera.png) | ![](img/2026-11-17-v04-cerca.png) | ![](img/2026-11-17-v04-sposta-libri.png) | |
 
 ## Verifiche fatte qui
 
 - `make prova` con un giro nuovo che usa tutte le voci dei due menu.
 - AddressSanitizer + UBSan su due giri lunghi: nessun errore.
 - Compilazione ARM (256 KB) e prova in emulazione.
+
+## v0.4.1: il menu Home cambiato da Simone
+
+Mentre costruivo le schermate v0.4 in Figma ho visto che il pannello della Home era cambiato (Simone ci
+stava lavorando): **Ordina per ‹ Più recente ›**, **Obbiettivo giornaliero ‹ 30 m ›**, Crea nuova raccolta +,
+**Aggiungi alla raccolta ›**, **Salva come finito +**, **Tutte le impostazioni ›**. La v0.4.1 segue il frame
+nuovo: le prime due voci si cambiano con sinistra/destra; "Aggiungi alla raccolta" e "Salva come finito"
+valgono per il libro con il riquadro. "Aggiungi libro da leggere" non c'è più, quindi la domanda su cosa
+dovesse fare è risolta. Lezione: rileggere Figma subito prima di ogni versione, non solo all'inizio.
 
 ## Da fare
 

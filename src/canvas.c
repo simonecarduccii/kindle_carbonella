@@ -2,6 +2,7 @@
 #include "carbonella.h"
 
 #include <math.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -129,16 +130,82 @@ static int in_crescent(const void *p, float x, float y)
     return in_disc(p, x, y) && d2 > k->r2 * k->r2;
 }
 
+
+/* ---- scanline version of the same 4x4 sampling (v1.0): for each of the 4 sub-rows of a pixel row the
+ * shape gives its spans [x0, x1) (even-odd pairs); a sub-sample at x + (i + 0.5) / 4 is inside when it
+ * falls in a span. Same result as fill_inside, without testing every sample of the box: big discs and
+ * polygons of the cover illustrations were seconds on the Kindle (soft float). */
+
+typedef int (*SpansFn)(const void *ctx, float sy, float *xs, int max); /* returns the count, sorted pairs */
+
+static void fill_spans(Canvas *c, float y0, float y1, SpansFn spans, const void *ctx, uint8_t ink)
+{
+    int iy0 = (int)floorf(y0), iy1 = (int)ceilf(y1);
+    if (iy0 < c->cy0) iy0 = c->cy0;
+    if (iy1 > c->cy1) iy1 = c->cy1;
+    int w = c->cx1 - c->cx0;
+    if (w <= 0)
+        return;
+    uint8_t *cov = xcalloc((size_t)w, 1);
+    float xs[64];
+    for (int y = iy0; y < iy1; y++) {
+        int lo = w, hi = -1;
+        for (int j = 0; j < 4; j++) {
+            int n = spans(ctx, y + (j + 0.5f) / 4, xs, 64);
+            for (int k = 0; k + 1 < n; k += 2) {
+                /* sub-samples s (in quarter pixels) with s + 0.5 in [4 x0, 4 x1) */
+                int s0 = (int)ceilf(xs[k] * 4 - 0.5f), s1 = (int)ceilf(xs[k + 1] * 4 - 0.5f);
+                if (s0 < c->cx0 * 4) s0 = c->cx0 * 4;
+                if (s1 > c->cx1 * 4) s1 = c->cx1 * 4;
+                for (int sx = s0; sx < s1;) {
+                    int px = sx >> 2, end = (px + 1) * 4 < s1 ? (px + 1) * 4 : s1;
+                    cov[px - c->cx0] += (uint8_t)(end - sx);
+                    if (px - c->cx0 < lo) lo = px - c->cx0;
+                    if (px - c->cx0 > hi) hi = px - c->cx0;
+                    sx = end;
+                }
+            }
+        }
+        for (int i = lo; i <= hi; i++)
+            if (cov[i]) {
+                blend(c, c->cx0 + i, y, ink, cov[i] > 16 ? 16 : cov[i]);
+                cov[i] = 0;
+            }
+    }
+    free(cov);
+}
+
+static int disc_spans(const void *p, float sy, float *xs, int max)
+{
+    const Circ *k = p;
+    (void)max;
+    float dy = sy - k->cy, o2 = k->r * k->r - dy * dy;
+    if (o2 < 0)
+        return 0;
+    float o = sqrtf(o2), i2 = k->r_in * k->r_in - dy * dy;
+    if (k->r_in <= 0 || i2 <= 0) {
+        xs[0] = k->cx - o;
+        xs[1] = k->cx + o;
+        return 2;
+    }
+    float in = sqrtf(i2);
+    xs[0] = k->cx - o;
+    xs[1] = k->cx - in;
+    xs[2] = k->cx + in;
+    xs[3] = k->cx + o;
+    return 4;
+}
+
 void canvas_disc(Canvas *c, float cx, float cy, float r, uint8_t ink)
 {
     Circ k = { cx, cy, r, 0, 0, 0, 0 };
-    fill_inside(c, cx - r, cy - r, cx + r, cy + r, in_disc, &k, ink);
+    fill_spans(c, cy - r, cy + r, disc_spans, &k, ink);
 }
 
 void canvas_ring(Canvas *c, float cx, float cy, float r, float thick, uint8_t ink)
 {
     Circ k = { cx, cy, r, r - thick, 0, 0, 0 };
-    fill_inside(c, cx - r, cy - r, cx + r, cy + r, in_disc, &k, ink);
+    fill_spans(c, cy - r, cy + r, disc_spans, &k, ink);
 }
 
 void canvas_crescent(Canvas *c, float cx, float cy, float r, float cx2, float cy2, float r2, uint8_t ink)
@@ -148,18 +215,6 @@ void canvas_crescent(Canvas *c, float cx, float cy, float r, float cx2, float cy
 }
 
 typedef struct { const float *xy; int n; float t2; } Poly;
-
-static int in_polygon(const void *p, float x, float y)
-{
-    const Poly *k = p;
-    int in = 0;
-    for (int i = 0, j = k->n - 1; i < k->n; j = i++) {
-        float xi = k->xy[2 * i], yi = k->xy[2 * i + 1], xj = k->xy[2 * j], yj = k->xy[2 * j + 1];
-        if ((yi > y) != (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi)
-            in = !in;
-    }
-    return in;
-}
 
 static int in_segment(const Poly *k, int i, float x, float y)
 {
@@ -196,12 +251,30 @@ static void bbox(const float *xy, int n, float pad, float *b)
     b[3] += pad;
 }
 
+static int poly_spans(const void *p, float sy, float *xs, int max)
+{
+    const Poly *k = p;
+    int n = 0;
+    for (int i = 0, j = k->n - 1; i < k->n; j = i++) {
+        float xi = k->xy[2 * i], yi = k->xy[2 * i + 1], xj = k->xy[2 * j], yj = k->xy[2 * j + 1];
+        if ((yi > sy) != (yj > sy) && n < max)
+            xs[n++] = (xj - xi) * (sy - yi) / (yj - yi) + xi;
+    }
+    for (int a = 1; a < n; a++) /* insertion sort, few crossings */
+        for (int b = a; b > 0 && xs[b - 1] > xs[b]; b--) {
+            float t = xs[b];
+            xs[b] = xs[b - 1];
+            xs[b - 1] = t;
+        }
+    return n & ~1;
+}
+
 void canvas_polygon(Canvas *c, const float *xy, int n, uint8_t ink)
 {
     float b[4];
     Poly k = { xy, n, 0 };
     bbox(xy, n, 0, b);
-    fill_inside(c, b[0], b[1], b[2], b[3], in_polygon, &k, ink);
+    fill_spans(c, b[1], b[3], poly_spans, &k, ink);
 }
 
 /* Segment by segment, each in its own small box: testing every segment for every pixel of the

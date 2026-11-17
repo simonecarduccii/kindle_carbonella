@@ -18,7 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define CARBONELLA_VERSION "0.6.3"
+#define CARBONELLA_VERSION "1.0.0"
 
 /* ------------------------------------------------------------------ util */
 
@@ -177,6 +177,7 @@ void ui_group_label(Canvas *c, int x, float top, const char *label);
 int ui_text_block(Canvas *c, Face f, int size, float lh, int x, float top, int w, int max_lines, const char *s,
                   uint8_t ink, int count_only);
 int cover_model_for(const char *title, const char *author, const char *publisher); /* 0..5 */
+void cover_describe(const char *title, const char *author, const char *publisher, char *out, size_t n);
 void cover_draw(Canvas *c, float x, float y, float w, float h, const char *title, const char *author,
                 const char *publisher, float border);
 

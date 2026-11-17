@@ -1,6 +1,29 @@
 # Novità di Carbonella
 
-Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Finché siamo a `0.x` tutto può cambiare.
+Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Dalla 1.0.0 le versioni MINORE aggiungono cose, le CORREZIONE sistemano.
+
+## v1.0.0 · 2026-11-17 · "Carbonella"
+
+La prima versione completa: le copertine sono tutte nel formato dello schermo e ogni libro ha la sua.
+
+- **Copertine 600×800 (3:4)**: i sei modelli di Simone (Sellerio, Adelphi, Einaudi, Feltrinelli, Bompiani,
+  Mondadori) sono disegnati alla misura dello schermo del Kindle, come i componenti "Copertine 600×800"
+  in Figma. In standby la copertina riempie lo schermo 1:1, senza bande ai lati.
+  - Il blocco "Illustrazione" segue l'auto layout di Figma: se il titolo va su più righe, l'illustrazione
+    si sposta o si accorcia.
+- **Home e raccolte nel nuovo formato**: copertine 172×229 (prima 172×249), celle 181×262, la pila delle
+  raccolte con copertine 168×224. Come nel frame Home di Figma.
+- **Grigi a contrasto costante**: ogni libro sposta tutti i grigi della sua copertina (sfondo, pannelli,
+  illustrazione e testo insieme) di 0, 1 o 2 gradini dell'e-ink (17 su 255). Il contrasto tra sfondo e
+  testo resta lo stesso. Sellerio scurisce, gli altri schiariscono, Bompiani resta bianco.
+- **Illustrazioni generate**: nel rettangolo "Illustrazione" di ogni modello c'è un disegno scelto dal
+  titolo e dall'autore, sempre uguale per lo stesso libro. Otto motivi: cerchi, strisce, punti, sole,
+  montagne, onde, blocchi, scacchi. Il disegno usa il grigio del rettangolo spostato di 4 gradini,
+  l'accento di 8.
+- **Disegno più veloce**: dischi e poligoni ora si riempiono riga per riga (stessa qualità, 4×4
+  campioni). Una copertina a tutto schermo passa da 2–4 s a 0,2–0,6 s sotto qemu.
+- `--tavola FILE`: salva una tavola di prova con 30 copertine generate (modello, motivo e gradino sotto
+  ciascuna).
 
 ## v0.6.3 · 2026-11-17
 

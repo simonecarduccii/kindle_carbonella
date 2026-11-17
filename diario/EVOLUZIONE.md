@@ -1,6 +1,6 @@
 # Evoluzione di Carbonella
 
-Il riassunto di tutto il percorso, dal Kindle appena sbloccato alla v0.6.1. I dettagli di ogni passo
+Il riassunto di tutto il percorso, dal Kindle appena sbloccato alla v1.0.0. I dettagli di ogni passo
 sono nei file del diario linkati qui sotto. Le ore sono in UTC e vengono dai commit.
 
 La stessa evoluzione è anche in Figma, nella pagina **Evoluzione**: lì ci sono le copie congelate delle
@@ -25,6 +25,8 @@ schermate di ogni passo.
 | 17 nov 01:54 | **v0.5.2**: lo standby con la copertina funziona davvero (il tasto di accensione veniva ignorato) | [v05-obiettivi](2026-11-17-v05-obiettivi.md#v052-lo-standby-non-funzionava) |
 | 17 nov 09:50 | **v0.5.3**: ritocchi di Simone (barra di lettura nera, Obiettivi senza piè di pagina) | [v05-obiettivi](2026-11-17-v05-obiettivi.md#v053-0950-utc-ritocchi-di-simone) |
 | 17 nov 10:10 | **v0.6.0 / v0.6.1 "Copertine dagli editori"**: copertine dai 5 modelli di Simone, Standby automatico dopo, NUOVO, selezione quadrata, linguetta | [v06-copertine-editori](2026-11-17-v06-copertine-editori.md) |
+| 17 nov 10:20–10:40 | **v0.6.2 / v0.6.3**: bordo del pannello raccolte, nuova batteria, modello Mondadori | [v06-copertine-editori](2026-11-17-v06-copertine-editori.md) |
+| 17 nov 11:00 | **v1.0.0 "Carbonella"**: copertine 600×800, Home 3:4, grigi a contrasto costante, illustrazioni generate | [v100-carbonella](2026-11-17-v100-carbonella.md) |
 
 ## Cosa abbiamo imparato
 
@@ -36,6 +38,8 @@ schermate di ogni passo.
 - **Sistema del Kindle**: BusyBox 1.7.2 è vecchio (niente nohup, niente grep -E). `lipc-wait-event`
   ignora SIGTERM. Con `preventScreenSaver` a 1, powerd ignora il tasto di accensione. powerd del K4 non
   ha una proprietà `powerButton`: le proprietà vere si leggono con `lipc-probe -v com.lab126.powerd`.
+- **Disegno veloce sul Kindle**: le forme grandi (dischi, poligoni) vanno riempite riga per riga, non
+  campionando ogni punto del rettangolo che le contiene (v1.0: da 4 s a 0,3 s per copertina).
 
 ## Salvataggio del 17 nov, 09:40 UTC
 

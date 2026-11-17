@@ -297,9 +297,9 @@ void ui_group_label(Canvas *c, int x, float top, const char *label)
 /* ---------------------------------------------------------------- covers */
 
 /* Since v0.6 every book is drawn with one of Simone's publisher models (six since v0.6.3) (Figma, "Libreria
- * componenti" > Frame 6): Sellerio, Adelphi, Einaudi, Feltrinelli, Bompiani. Each model is designed at
- * 240 x 347 and scaled uniformly; when the box has another ratio (standby, 600 x 800) the model is
- * centred and the rest is filled with its background. Colours are the Figma rgb turned into ink (255 - rgb). */
+ * componenti" > "Copertine 600×800"): Sellerio, Adelphi, Einaudi, Feltrinelli, Bompiani, Mondadori.
+ * Since v1.0 every model is drawn at 600 x 800, the screen of the Kindle: 1:1 in standby, scaled
+ * to 172 x 229 in the Home. Colours are the Figma rgb turned into ink (255 - rgb). */
 
 enum { M_SELLERIO, M_ADELPHI, M_EINAUDI, M_FELTRINELLI, M_BOMPIANI, M_MONDADORI, N_MODELS };
 
@@ -343,8 +343,19 @@ int cover_model_for(const char *title, const char *author, const char *publisher
  * word wrap on at most max lines (the last one ends with "…"). Returns the lines, or only counts them. */
 typedef struct {
     Canvas *c;
-    float ox, oy, s; /* origin of the 240 x 347 model and scale */
+    float ox, oy, s; /* origin of the 600 x 800 model and scale */
+    int d;           /* v1.0: shift of every grey of the cover, in ink (steps of 17 = one e-ink grey) */
+    uint32_t seed;   /* v1.0: seed of the illustration, from title and author */
 } Model;
+
+/* Every grey of a cover moves by the same d: background, panels, illustration and text together, so
+ * the contrast between them stays the same (Simone, 2026-11-17: "le sfumature di grigio, mantenendo
+ * sempre lo stesso contrasto"). Only pure black and pure white can be clamped. */
+static uint8_t mink(const Model *m, int ink)
+{
+    ink += m->d;
+    return (uint8_t)(ink < 0 ? 0 : ink > 255 ? 255 : ink);
+}
 
 static float tracked_width(Face f, int size, float track, const char *s, size_t len)
 {
@@ -431,7 +442,7 @@ static int model_text(const Model *m, Face f, float size_d, float track_em, floa
         if (!count_only) {
             float lw = tracked_width(f, size, track, line, l);
             float lx = center ? x + (w - lw) / 2 : x;
-            tracked_draw(m->c, f, size, track, lx, ui_baseline(f, size, top + lines * lh, lh), line, l, ink);
+            tracked_draw(m->c, f, size, track, lx, ui_baseline(f, size, top + lines * lh, lh), line, l, mink(m, ink));
         }
         lines++;
         i = end;
@@ -444,7 +455,172 @@ static int model_text(const Model *m, Face f, float size_d, float track_em, floa
 
 static void mrect(const Model *m, float x, float y, float w, float h, uint8_t ink)
 {
-    canvas_rectf(m->c, m->ox + x * m->s, m->oy + y * m->s, w * m->s, h * m->s, ink);
+    canvas_rectf(m->c, m->ox + x * m->s, m->oy + y * m->s, w * m->s, h * m->s, mink(m, ink));
+}
+
+static void mdisc(const Model *m, float cx, float cy, float r, uint8_t ink)
+{
+    canvas_disc(m->c, m->ox + cx * m->s, m->oy + cy * m->s, r * m->s, mink(m, ink));
+}
+
+static void mpoly(const Model *m, const float *xy, int n, uint8_t ink)
+{
+    float p[128];
+    if (n > 64)
+        n = 64;
+    for (int i = 0; i < n; i++) {
+        p[2 * i] = m->ox + xy[2 * i] * m->s;
+        p[2 * i + 1] = m->oy + xy[2 * i + 1] * m->s;
+    }
+    canvas_polygon(m->c, p, n, mink(m, ink));
+}
+
+/* ------------------------------------------------ illustrations (v1.0) */
+
+/* The "Illustrazione" rectangle of every model gets a drawing generated from the book: same book,
+ * same drawing, on the Home and in standby. Eight motifs, each with its own random parameters; the
+ * drawing uses the rectangle's grey moved by a fixed step (4 e-ink greys, 68), the accent by 8. All
+ * shapes are rectangles, discs and small polygons: on the Kindle (soft float) big anti-aliased shapes
+ * are slow. */
+
+static uint32_t rnd(uint32_t *r)
+{
+    *r ^= *r << 13;
+    *r ^= *r >> 17;
+    *r ^= *r << 5;
+    return *r;
+}
+
+static float rndf(uint32_t *r, float a, float b) /* in [a, b) */
+{
+    return a + (b - a) * (float)(rnd(r) % 10000) / 10000.0f;
+}
+
+static const char *const MOTIFS[] = { "cerchi", "strisce", "punti", "sole", "montagne", "onde", "blocchi", "scacchi" };
+#define N_MOTIFS 8
+
+static void illustration(const Model *m, float x, float y, float w, float h, uint8_t base)
+{
+    mrect(m, x, y, w, h, base);
+    int b = base;
+    int dir = mink(m, base) < 128 ? 1 : -1;
+    uint8_t k1 = (uint8_t)(b + dir * 68), k2 = (uint8_t)(b + dir * 136 < 0 ? 0 : b + dir * 136 > 255 ? 255 : b + dir * 136);
+    uint32_t r = m->seed | 1;
+    int motif = (int)(rnd(&r) % N_MOTIFS);
+
+    /* drawing stays inside the rectangle */
+    Canvas *c = m->c;
+    int ox0 = c->cx0, oy0 = c->cy0, ox1 = c->cx1, oy1 = c->cy1;
+    int ix0 = (int)lrintf(m->ox + x * m->s), iy0 = (int)lrintf(m->oy + y * m->s);
+    int ix1 = (int)lrintf(m->ox + (x + w) * m->s), iy1 = (int)lrintf(m->oy + (y + h) * m->s);
+    c->cx0 = ix0 > ox0 ? ix0 : ox0;
+    c->cy0 = iy0 > oy0 ? iy0 : oy0;
+    c->cx1 = ix1 < ox1 ? ix1 : ox1;
+    c->cy1 = iy1 < oy1 ? iy1 : oy1;
+    if (c->cx1 <= c->cx0 || c->cy1 <= c->cy0)
+        goto done;
+
+    float mn = w < h ? w : h;
+    switch (motif) {
+    case 0: { /* concentric circles, centre anywhere in the rectangle */
+        float cx = x + rndf(&r, 0.2f, 0.8f) * w, cy = y + rndf(&r, 0.2f, 0.8f) * h;
+        float R = mn * rndf(&r, 0.45f, 0.7f), step = R / (3 + rnd(&r) % 2);
+        for (int i = 0; R - i * step > 4; i++)
+            mdisc(m, cx, cy, R - i * step, i % 2 ? base : (i == 0 ? k1 : k2));
+        break;
+    }
+    case 1: { /* bands, horizontal or vertical, of random widths */
+        int vert = rnd(&r) % 2;
+        float len = vert ? w : h, p = rndf(&r, 0, 20);
+        while (p < len) {
+            float t = rndf(&r, 6, 34), gap = rndf(&r, 8, 40);
+            uint8_t k = rnd(&r) % 4 ? k1 : k2;
+            if (vert)
+                mrect(m, x + p, y, t, h, k);
+            else
+                mrect(m, x, y + p, w, t, k);
+            p += t + gap;
+        }
+        break;
+    }
+    case 2: { /* grid of dots, growing towards one corner */
+        float sp = rndf(&r, 34, 56), gx = rnd(&r) % 2, gy = rnd(&r) % 2;
+        for (float py = sp / 2; py < h; py += sp)
+            for (float px = sp / 2; px < w; px += sp) {
+                float fx = gx ? px / w : 1 - px / w, fy = gy ? py / h : 1 - py / h;
+                float rr = sp * 0.08f + sp * 0.36f * (fx + fy) / 2;
+                mdisc(m, x + px, y + py, rr, k1);
+            }
+        break;
+    }
+    case 3: { /* sun over a horizon of bands */
+        float hz = y + h * rndf(&r, 0.55f, 0.72f);
+        float R = mn * rndf(&r, 0.18f, 0.3f);
+        mdisc(m, x + w * rndf(&r, 0.25f, 0.75f), hz - R * rndf(&r, 0.2f, 1.1f), R, k2);
+        mrect(m, x, hz, w, y + h - hz, k1);
+        for (float p = hz + 10, t = 4; p < y + h; p += t * 3, t += 3)
+            mrect(m, x, p, w, t, base);
+        break;
+    }
+    case 4: { /* two ridges of mountains */
+        for (int layer = 0; layer < 2; layer++) {
+            float pts[2 * 12];
+            int n = 0, peaks = 2 + rnd(&r) % 3;
+            float top = y + h * (layer ? 0.55f : 0.3f);
+            pts[n++] = x;
+            pts[n++] = y + h;
+            for (int i = 0; i <= peaks * 2; i++) {
+                pts[n++] = x + w * i / (peaks * 2);
+                pts[n++] = i % 2 ? top + rndf(&r, 0, h * 0.15f) : top + h * rndf(&r, 0.18f, 0.3f);
+            }
+            pts[n++] = x + w;
+            pts[n++] = y + h;
+            mpoly(m, pts, n / 2, layer ? k2 : k1);
+        }
+        break;
+    }
+    case 5: { /* stacked waves */
+        float amp = rndf(&r, 8, 22), len = rndf(&r, 90, 180), sp = rndf(&r, 26, 44), ph = rndf(&r, 0, 6.28f);
+        float th = sp * rndf(&r, 0.25f, 0.45f);
+        for (float py = y + sp / 2; py < y + h + amp; py += sp) {
+            float pts[2 * 50]; /* a band: the upper curve, then the lower one backwards */
+            for (int i = 0; i < 25; i++) {
+                float px = x - 10 + (w + 20) * i / 24;
+                float wy = py + amp * sinf(ph + (px - x) * 6.2832f / len);
+                pts[2 * i] = pts[2 * (49 - i)] = px;
+                pts[2 * i + 1] = wy - th / 2;
+                pts[2 * (49 - i) + 1] = wy + th / 2;
+            }
+            mpoly(m, pts, 50, k1);
+            ph += rndf(&r, 0, 0.8f);
+        }
+        break;
+    }
+    case 6: { /* blocks: one big disc, a bar and a square */
+        mdisc(m, x + w * rndf(&r, 0.3f, 0.7f), y + h * rndf(&r, 0.3f, 0.7f), mn * rndf(&r, 0.25f, 0.4f), k1);
+        float bw = w * rndf(&r, 0.08f, 0.16f);
+        mrect(m, x + w * rndf(&r, 0, 0.85f), y, bw, h, k2);
+        float sq = mn * rndf(&r, 0.2f, 0.35f);
+        mrect(m, x + rndf(&r, 0, w - sq), y + rndf(&r, 0, h - sq), sq, sq, k2);
+        float bh = h * rndf(&r, 0.06f, 0.12f);
+        mrect(m, x, y + h * rndf(&r, 0.1f, 0.9f), w, bh, k1);
+        break;
+    }
+    default: { /* checkerboard with missing squares */
+        int nx = 4 + rnd(&r) % 5;
+        float sq = w / nx;
+        for (int j = 0; j * sq < h; j++)
+            for (int i = 0; i < nx; i++)
+                if ((i + j) % 2 && rnd(&r) % 5)
+                    mrect(m, x + i * sq, y + j * sq, sq, sq, rnd(&r) % 6 ? k1 : k2);
+        break;
+    }
+    }
+done:
+    c->cx0 = ox0;
+    c->cy0 = oy0;
+    c->cx1 = ox1;
+    c->cy1 = oy1;
 }
 
 /* Text height in model units, to push what follows down when a title takes more lines. */
@@ -453,82 +629,101 @@ static float lines_h(float size, float lh_pct, int n)
     return size * lh_pct * n;
 }
 
+/* The six models as Simone drew them in Figma at 600 x 800 ("Copertine 600×800", auto layout). The
+ * illustration ("Illustrazione") sits where auto layout puts it: when a title takes more lines the
+ * illustration moves or shrinks, as SPACE_BETWEEN would do. */
+
+/* Space-between of one block of height h between top and bottom: returns its y, or top + min_gap when
+ * there is no room. */
+static float between(float top, float bottom, float h)
+{
+    float y = top + (bottom - top - h) / 2;
+    return y < top ? top : y;
+}
+
 static void model_sellerio(const Model *m, const char *t, const char *au, const char *pub, int ours)
 {
-    mrect(m, 0, 0, 240, 348, 221);                                                   /* #222 */
-    model_text(m, FACE_BODONI, 14, 0.12f, 1.3f, 21, 19, 198, 0, 1, au, 0, G_CARTA, 0); /* author */
-    int n = model_text(m, FACE_BODONI, 17, 0, 1.12f, 21, 40, 198, 0, 3, t, 0, G_CARTA, 0);
-    float frame_top = 40 + lines_h(17, 1.12f, n) + 37; /* "Cornice bianca": 96 with a title of one line */
-    if (frame_top < 96)
-        frame_top = 96;
-    float frame_h = 275 - frame_top;
-    if (frame_h > 20)
-        mrect(m, 21, frame_top, 144, frame_h, G_CARTA);
-    model_text(m, FACE_BODONI, 12, 0, 1.25f, 21, 318, 198, 0, 1, ours ? "Sellerio" : pub, 0, G_CARTA, 0);
+    mrect(m, 0, 0, 600, 800, G_GRAFITE);                                                 /* #222 */
+    int na = model_text(m, FACE_BODONI, 36, 0.12f, 1.3f, 52, 48, 496, 0, 2, au, 0, G_CARTA, 0);
+    float ttop = 48 + lines_h(36, 1.3f, na) + 12;
+    int nt = model_text(m, FACE_BODONI, 48, 0, 1.12f, 52, ttop, 496, 0, 3, t, 0, G_CARTA, 0);
+    float head = ttop + lines_h(48, 1.12f, nt), foot = 740;
+    float ih = 400;
+    if (foot - head - 40 < ih)
+        ih = foot - head - 40;
+    if (ih > 40)
+        illustration(m, 52, between(head, foot, ih), 360, ih, G_CARTA); /* white */
+    model_text(m, FACE_BODONI, 30, 0, 1.25f, 52, 740, 496, 0, 1, ours ? "Sellerio" : pub, 0, G_CARTA, 0);
 }
 
 static void model_adelphi(const Model *m, const char *t, const char *au, const char *pub, int ours)
 {
-    mrect(m, 0, 0, 240, 347, 68);        /* #BBB */
-    mrect(m, 9, 9, 222, 31, G_NERO);     /* band with the series */
-    model_text(m, FACE_BASK, 12, 0.12f, 1.25f, 17, 17, 206, 1, 1, ours ? "Gli Adelphi" : pub, 1, G_CARTA, 0);
-    mrect(m, 9, 40, 222, 298, G_LEGGERO); /* #CCC */
-    model_text(m, FACE_BASK_ITALIC, 13, 0.10f, 1.3f, 21, 61, 198, 1, 1, au, 0, G_NERO, 0);
-    int n = model_text(m, FACE_BASK_ITALIC, 20, 0, 1.18f, 21, 88, 198, 1, 3, t, 0, G_NERO, 0);
-    float ill_top = 170, below = 88 + lines_h(20, 1.18f, n) + 12;
-    if (below > ill_top)
-        ill_top = below;
-    if (304 - ill_top > 20)
-        mrect(m, 56, ill_top, 128, 304 - ill_top, 68); /* illustration */
+    mrect(m, 0, 0, 600, 800, G_VELO);  /* #BBB */
+    mrect(m, 22, 22, 556, 77, G_NERO); /* band with the series */
+    model_text(m, FACE_BASK, 30, 0.12f, 1.23f, 38, 42, 524, 1, 1, ours ? "Gli Adelphi" : pub, 1, G_CARTA, 0);
+    mrect(m, 22, 99, 556, 679, G_LEGGERO); /* #CCC panel */
+    int na = model_text(m, FACE_BASK_ITALIC, 34, 0.10f, 1.3f, 52, 130, 496, 1, 2, au, 0, G_NERO, 0);
+    float ttop = 130 + lines_h(34, 1.3f, na) + 20;
+    int nt = model_text(m, FACE_BASK_ITALIC, 52, 0, 1.18f, 52, ttop, 496, 1, 3, t, 0, G_NERO, 0);
+    float head = ttop + lines_h(52, 1.18f, nt) + 20, ih = 320;
+    if (712 - head < ih)
+        ih = 712 - head;
+    if (ih > 40)
+        illustration(m, 140, 712 - ih, 320, ih, G_CENERE); /* #666 */
 }
 
 static void model_einaudi(const Model *m, const char *t, const char *au, const char *pub, int ours)
 {
-    mrect(m, 0, 0, 240, 347, 68);
-    model_text(m, FACE_MONO_BOLD, 15, 0.10f, 1.3f, 17, 34, 216, 1, 1, au, 1, G_NERO, 0);
-    int n = model_text(m, FACE_MONO_BOLD, 15, 0, 1.18f, 21, 56, 198, 1, 3, t, 1, G_GRAFITE, 0);
-    float ill_top = 109, below = 56 + lines_h(15, 1.18f, n) + 17;
-    if (below > ill_top)
-        ill_top = below;
-    if (310 - ill_top > 20)
-        mrect(m, 27, ill_top, 186, 310 - ill_top, G_SMOG); /* #999 */
-    model_text(m, FACE_MONO_BOLD, 10, 0.10f, 1.3f, 17, 327, 206, 1, 1, ours ? "einaudi" : pub, 1, G_CARTA, 0);
+    mrect(m, 0, 0, 600, 800, G_VELO);
+    int na = model_text(m, FACE_MONO_BOLD, 36, 0.10f, 1.3f, 42, 42, 516, 1, 2, au, 1, G_NERO, 0);
+    float ttop = 42 + lines_h(36, 1.3f, na) + 16;
+    int nt = model_text(m, FACE_MONO_BOLD, 38, 0, 1.18f, 42, ttop, 516, 1, 3, t, 1, G_GRAFITE, 0);
+    float head = ttop + lines_h(38, 1.18f, nt), foot = 760, ih = 456;
+    if (foot - head - 40 < ih)
+        ih = foot - head - 40;
+    if (ih > 40)
+        illustration(m, 68, between(head, foot, ih), 464, ih, G_CENERE);
+    model_text(m, FACE_MONO_BOLD, 24, 0.10f, 1.3f, 42, 760, 516, 1, 1, ours ? "einaudi" : pub, 1, G_CARTA, 0);
 }
 
 static void model_feltrinelli(const Model *m, const char *t, const char *au, const char *pub, int ours)
 {
-    mrect(m, 0, 0, 240, 347, 68);
-    mrect(m, 0, 8, 240, 339, G_LEGGERO);
-    mrect(m, 21, 27, 198, 201, G_FUMO); /* #AAA */
-    int na = model_text(m, FACE_MONO_BOLD, 15, 0.10f, 1.3f, 33, 246, 173, 0, 2, au, 1, G_NERO, 1);
-    int nt = model_text(m, FACE_MONO_BOLD, 16, 0, 1.18f, 33, 0, 173, 0, 2, t, 0, G_GRAFITE, 1);
-    /* name and title sit above the logo: they grow upwards when they take more lines */
-    float top = 246, end = top + lines_h(15, 1.3f, na) + lines_h(16, 1.18f, nt);
-    if (end > 300)
-        top -= end - 300;
-    model_text(m, FACE_MONO_BOLD, 15, 0.10f, 1.3f, 33, top, 173, 0, 2, au, 1, G_NERO, 0);
-    model_text(m, FACE_MONO_BOLD, 16, 0, 1.18f, 33, top + lines_h(15, 1.3f, na), 173, 0, 2, t, 0, G_GRAFITE, 0);
-    /* logo: the triangle, then "universale economica feltrinelli" on three lines */
-    float tri[6] = { m->ox + 20 * m->s, m->oy + 319 * m->s, m->ox + 29.9f * m->s, m->oy + 309.1f * m->s,
-                     m->ox + 29.9f * m->s, m->oy + 328.9f * m->s };
-    canvas_polygon(m->c, tri, 3, G_NERO);
+    mrect(m, 0, 0, 600, 800, G_SMOG);      /* #666 at the top edge */
+    mrect(m, 0, 29, 600, 771, G_LEGGERO);  /* #CCC panel */
+    int na = model_text(m, FACE_MONO_BOLD, 36, 0.10f, 1.3f, 82, 0, 466, 0, 2, au, 1, G_NERO, 1);
+    int nt = model_text(m, FACE_MONO_BOLD, 40, 0, 1.18f, 82, 0, 466, 0, 2, t, 0, G_GRAFITE, 1);
+    float nh = lines_h(36, 1.3f, na) + 4 + lines_h(40, 1.18f, nt);
+    /* illustration from 73, then name and title, then the logo at 711: equal gaps */
+    float ih = 414, gap = (711 - 73 - ih - nh) / 2;
+    if (gap < 24) {
+        gap = 24;
+        ih = 711 - 73 - nh - 2 * gap;
+    }
+    if (ih > 40)
+        illustration(m, 52, 73, 496, ih, G_CENERE);
+    float ntop = 73 + ih + gap;
+    model_text(m, FACE_MONO_BOLD, 36, 0.10f, 1.3f, 82, ntop, 466, 0, 2, au, 1, G_NERO, 0);
+    model_text(m, FACE_MONO_BOLD, 40, 0, 1.18f, 82, ntop + lines_h(36, 1.3f, na) + 4, 466, 0, 2, t, 0, G_GRAFITE, 0);
+    float tri[6] = { m->ox + 52 * m->s, m->oy + 737 * m->s, m->ox + 77 * m->s, m->oy + 712 * m->s,
+                     m->ox + 77 * m->s, m->oy + 762 * m->s };
+    canvas_polygon(m->c, tri, 3, mink(m, G_NERO));
     if (ours) {
         static const char *L[3] = { "universale", "economica", "feltrinelli" };
         for (int i = 0; i < 3; i++)
-            model_text(m, FACE_MONO_BOLD, 6, 0.10f, 1.3f, 34, 308 + 7 * i, 120, 0, 1, L[i], 1, G_NERO, 0);
+            model_text(m, FACE_MONO_BOLD, 14, 0.10f, 1.2f, 88, 711 + 17 * i, 300, 0, 1, L[i], 1, G_NERO, 0);
     } else
-        model_text(m, FACE_MONO_BOLD, 6, 0.10f, 1.3f, 34, 315, 180, 0, 1, pub, 1, G_NERO, 0);
+        model_text(m, FACE_MONO_BOLD, 14, 0.10f, 1.2f, 88, 728, 460, 0, 1, pub, 1, G_NERO, 0);
 }
 
 static void model_bompiani(const Model *m, const char *t, const char *au, const char *pub, int ours)
 {
-    mrect(m, 0, 0, 240, 347, 68);
-    mrect(m, 1, 1, 238, 345, G_CARTA);
-    mrect(m, 0, 82, 240, 98, 68); /* band */
-    canvas_disc(m->c, m->ox + 120 * m->s, m->oy + 184 * m->s, 15 * m->s, 38); /* #D9D9D9 */
-    model_text(m, FACE_BASK, 14, 0.10f, 1.3f, 20, 33, 200, 1, 2, au, 1, G_NERO, 0);
-    model_text(m, FACE_BASK, 16, 0, 1.18f, 16, 211, 208, 1, 3, t, 0, G_GRAFITE, 0);
-    model_text(m, FACE_BASK, 6, 0.10f, 1.3f, 20, 317, 200, 1, 1, ours ? "Bompiani" : pub, 1, G_NERO, 0);
+    mrect(m, 0, 0, 600, 800, G_VELO);
+    mrect(m, 4, 4, 592, 792, G_CARTA);     /* white, 4 px #BBB outline */
+    illustration(m, 4, 194, 592, 226, G_CENERE); /* "Illustrazione" band, #666 */
+    mdisc(m, 300, 416, 38, 38); /* #D9D9D9 */
+    model_text(m, FACE_BASK, 36, 0.10f, 1.3f, 54, 70, 492, 1, 2, au, 1, G_NERO, 0);
+    model_text(m, FACE_BASK, 44, 0, 1.18f, 54, 494, 492, 1, 3, t, 0, G_GRAFITE, 0);
+    model_text(m, FACE_BASK, 16, 0.10f, 1.25f, 54, 726, 492, 1, 1, ours ? "Bompiani" : pub, 1, G_NERO, 0);
 }
 
 /* Mondadori (v0.6.3): Simone's first model drawn directly at 600 x 800 ("Copertine 600×800" in Figma,
@@ -537,7 +732,7 @@ static void model_bompiani(const Model *m, const char *t, const char *au, const 
 static void model_mondadori(const Model *m, const char *t, const char *au, const char *pub, int ours)
 {
     mrect(m, 0, 0, 600, 800, 68); /* #BBB */
-    canvas_disc(m->c, m->ox + 55 * m->s, m->oy + 67 * m->s, 32 * m->s, G_GRAFITE); /* logo */
+    mdisc(m, 55, 67, 32, G_GRAFITE); /* logo */
     if (ours) {
         model_text(m, FACE_MONO_BOLD, 16, 0.09f, 1.3f, 100, 38, 477, 0, 1, "Oscar", 1, G_NERO, 0);
         model_text(m, FACE_MONO_BOLD, 16, 0.09f, 1.3f, 100, 59, 477, 0, 1, "Libri", 1, G_NERO, 0);
@@ -549,8 +744,35 @@ static void model_mondadori(const Model *m, const char *t, const char *au, const
     if (below > ill_top)
         ill_top = below;
     if (684 - ill_top > 40)
-        mrect(m, 35, ill_top, 530, 684 - ill_top, G_CENERE); /* "Illustrazione" #666 */
+        illustration(m, 35, ill_top, 530, 684 - ill_top, G_CENERE); /* #666 */
     model_text(m, FACE_BASK, 16, 0, 1.25f, 23, 752, 554, 0, 1, ours ? "Mondadori" : pub, 1, G_NERO, 0);
+}
+
+static uint32_t cover_seed(const char *t, const char *au)
+{
+    uint32_t h = 2166136261u;
+    const char *parts[3] = { t, "#", au };
+    for (int k = 0; k < 3; k++)
+        for (const unsigned char *q = (const unsigned char *)parts[k]; *q; q++)
+            h = (h ^ *q) * 16777619u;
+    return h;
+}
+
+static int cover_shift(int model, uint32_t seed)
+{
+    int step = (int)((seed >> 24) % 3) * 17;
+    return model == M_SELLERIO ? step : model == M_BOMPIANI ? 0 : -step;
+}
+
+/* For the test sheet: "Einaudi · onde · -1" (model, motif, grey step). */
+void cover_describe(const char *title, const char *author, const char *publisher, char *out, size_t n)
+{
+    static const char *NAMES[N_MODELS] = { "Sellerio", "Adelphi", "Einaudi", "Feltrinelli", "Bompiani", "Mondadori" };
+    const char *t = title && *title ? title : "Senza titolo", *au = author ? author : "";
+    int model = cover_model_for(title, author, publisher);
+    uint32_t seed = cover_seed(t, au), r = seed | 1;
+    int motif = (int)(rnd(&r) % N_MOTIFS);
+    snprintf(out, n, "%s · %s · %+d", NAMES[model], MOTIFS[motif], cover_shift(model, seed) / 17);
 }
 
 /* Draws the cover of a book in the box (x, y, w, h). border: width of a black outline (0 = none);
@@ -576,12 +798,16 @@ void cover_draw(Canvas *c, float x, float y, float w, float h, const char *title
     c->cx1 = cx1;
     c->cy1 = cy1;
 
-    /* models are 240 x 347, Mondadori is already 600 x 800 */
-    float bw = model == M_MONDADORI ? 600 : 240, bh = model == M_MONDADORI ? 800 : 347;
-    float s = w / bw < h / bh ? w / bw : h / bh;
-    Model m = { c, x + (w - bw * s) / 2, y + (h - bh * s) / 2, s };
-    static const uint8_t BG[N_MODELS] = { 221, 68, 68, 68, G_CARTA, 68 };
-    canvas_fill(c, ix, iy, iw, ih, BG[model]);
+    /* all models are 600 x 800, the screen: 1:1 in standby, scaled in the Home (172 x 229) */
+    float s = w / 600 < h / 800 ? w / 600 : h / 800;
+    /* v1.0: the greys move together by 0, 1 or 2 e-ink steps, chosen by the book: darker for Sellerio
+     * (its white text gets a touch of grey), lighter for the others (black text a touch of grey);
+     * Bompiani stays on pure white. The seed also chooses the illustration. */
+    uint32_t h1 = cover_seed(t, au);
+    int d = cover_shift(model, h1);
+    Model m = { c, x + (w - 600 * s) / 2, y + (h - 800 * s) / 2, s, d, h1 };
+    static const uint8_t BG[N_MODELS] = { G_GRAFITE, G_VELO, G_VELO, G_LEGGERO, G_CARTA, G_VELO };
+    canvas_fill(c, ix, iy, iw, ih, mink(&m, BG[model]));
     switch (model) {
     case M_SELLERIO: model_sellerio(&m, t, au, pub, ours); break;
     case M_ADELPHI: model_adelphi(&m, t, au, pub, ours); break;
@@ -590,7 +816,7 @@ void cover_draw(Canvas *c, float x, float y, float w, float h, const char *title
     case M_MONDADORI: model_mondadori(&m, t, au, pub, ours); break;
     default: model_bompiani(&m, t, au, pub, ours); break;
     }
-    int b = border > 0 ? (int)lrintf(border) : model == M_BOMPIANI ? 1 : 0;
+    int b = border > 0 ? (int)lrintf(border) : 0;
     if (b)
         canvas_frame(c, ix, iy, iw, ih, b, G_NERO);
     c->cx0 = ox0;

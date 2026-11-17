@@ -1789,14 +1789,14 @@ typedef struct {
     long long recent;  /* for sorting */
 } Cell;
 
-/* Grid geometry from "00 · Home 3 colonne (scorrimento)" */
+/* Grid geometry from "00 · Home 3 colonne (scorrimento)", 3:4 covers since v1.0 */
 #define G_X0 19.0f
 #define G_Y0 72.0f
 #define G_CW 180.667f
-#define G_CH 281.849f
+#define G_CH 261.77f /* v1.0: 3:4 covers */
 #define G_GX 10.0f
 #define G_GY 14.0f
-#define G_FRAME_H 258.1f
+#define G_FRAME_H 238.02f
 
 /* sub-folder of the books folder that holds the book ("" = none) */
 static void folder_of(App *a, const LibEntry *e, char *out, size_t n)
@@ -1972,18 +1972,18 @@ static void draw_cell(App *a, const Cell *c, float x, float y, int focus)
     /* "Focus = cornice nera di 3 px" (v0.6): a square frame around the cell, the cover does not move */
     frame_clip(cv, x, y);
     if (c->kind == CELL_BOOK) {
-        cover_draw(cv, x + 4.3f, y + 4.3f, 172.064f, 249.492f, c->e->title, c->e->author, c->e->publisher, 0);
+        cover_draw(cv, x + 4.3f, y + 4.3f, 172.064f, 229.41f, c->e->title, c->e->author, c->e->publisher, 0);
     } else {
         /* "Raccolte": a pile of three covers, the most recent in front */
-        static const float off[3][2] = { { 0, 6.24f }, { 4.3f, 1.94f }, { 8.6f, -2.37f } };
+        static const float off[3][2] = { { 0, 5.74f }, { 4.3f, 1.78f }, { 8.6f, -2.18f } };
         for (int i = 2; i >= 0; i--) {
             const LibEntry *e = c->pile[i] ? c->pile[i] : c->pile[0];
             float px = x + 4.3f + off[i][0], py = y + 4.3f + off[i][1];
             if (e)
-                cover_draw(cv, px, py, 167.762f, 243.255f, e->title, e->author, e->publisher, 1);
+                cover_draw(cv, px, py, 167.762f, 223.68f, e->title, e->author, e->publisher, 1);
             else /* empty collection: blank sheets */
-                canvas_fill(cv, (int)lrintf(px), (int)lrintf(py), 168, 243, G_CARTA);
-            canvas_frame(cv, (int)lrintf(px), (int)lrintf(py), 168, 243, e ? 1 : 2, G_NERO);
+                canvas_fill(cv, (int)lrintf(px), (int)lrintf(py), 168, 224, G_CARTA);
+            canvas_frame(cv, (int)lrintf(px), (int)lrintf(py), 168, 224, e ? 1 : 2, G_NERO);
         }
     }
     canvas_noclip(cv);
@@ -2507,6 +2507,44 @@ static void cover_sheet(App *a)
     full(a, REFRESH_FULL);
 }
 
+/* v1.0 test board (--tavola FILE): 30 books without publisher, so model, grey step and illustration all
+ * come from title and author, at the Home size (172 x 229) with model, motif and step under each. */
+static int cover_board(const char *path)
+{
+    static const char *B[30][2] = {
+        { "I promessi sposi", "Alessandro Manzoni" }, { "Il deserto dei Tartari", "Dino Buzzati" },
+        { "Se una notte d'inverno un viaggiatore", "Italo Calvino" }, { "Se questo è un uomo", "Primo Levi" },
+        { "La coscienza di Zeno", "Italo Svevo" }, { "Il gattopardo", "Giuseppe Tomasi di Lampedusa" },
+        { "Il giardino dei Finzi-Contini", "Giorgio Bassani" }, { "La storia", "Elsa Morante" },
+        { "Il partigiano Johnny", "Beppe Fenoglio" }, { "Il sentiero dei nidi di ragno", "Italo Calvino" },
+        { "Uno, nessuno e centomila", "Luigi Pirandello" }, { "Il visconte dimezzato", "Italo Calvino" },
+        { "La ragazza di Bube", "Carlo Cassola" }, { "Cristo si è fermato a Eboli", "Carlo Levi" },
+        { "L'amica geniale", "Elena Ferrante" }, { "Seta", "Alessandro Baricco" },
+        { "Va' dove ti porta il cuore", "Susanna Tamaro" }, { "Il giorno della civetta", "Leonardo Sciascia" },
+        { "Marcovaldo", "Italo Calvino" }, { "Il fu Mattia Pascal", "Luigi Pirandello" },
+        { "La noia", "Alberto Moravia" }, { "Il conformista", "Alberto Moravia" },
+        { "Lessico famigliare", "Natalia Ginzburg" }, { "Le città invisibili", "Italo Calvino" },
+        { "Il pendolo di Foucault", "Umberto Eco" }, { "Novecento", "Alessandro Baricco" },
+        { "La luna e i falò", "Cesare Pavese" }, { "Il nome della rosa", "Umberto Eco" },
+        { "Sostiene Pereira", "Antonio Tabucchi" }, { "Gli indifferenti", "Alberto Moravia" },
+    };
+    const int cols = 6, cw = 172, ch = 229, gx = 24, gy = 56, pad = 32;
+    Canvas c;
+    canvas_init(&c, pad * 2 + cols * cw + (cols - 1) * gx, pad * 2 + 5 * (ch + gy));
+    canvas_clear(&c, G_CARTA);
+    for (int i = 0; i < 30; i++) {
+        int x = pad + (i % cols) * (cw + gx), y = pad + (i / cols) * (ch + gy);
+        cover_draw(&c, x, y, cw, ch, B[i][0], B[i][1], NULL, 1);
+        char info[96];
+        cover_describe(B[i][0], B[i][1], NULL, info, sizeof info);
+        font_draw_text(&c, FACE_MONO, 12, x, y + ch + 18, B[i][0], G_NERO, cw);
+        font_draw_text(&c, FACE_MONO, 12, x, y + ch + 36, info, G_FUMO, cw);
+    }
+    int r = canvas_save_pgm(&c, path);
+    free(c.px);
+    return r;
+}
+
 /* --------------------------------------------------------------- main */
 
 static void on_signal(int sig)
@@ -2530,7 +2568,8 @@ static void usage(void)
             "  --sim DIR      simulatore: salva ogni schermata come PGM in DIR\n"
             "  --keys LIST    simulatore: tasti da premere (U D L R S N P H M B, W = attesa,\n"
             "                 Z = standby, A = risveglio)\n"
-            "  --copertine    mostra i 23 stili di copertina\n"
+            "  --copertine    mostra i modelli di copertina\n"
+            "  --tavola FILE  salva una tavola di 30 copertine generate (PGM)\n"
             "Segnali: SIGUSR1 = il Kindle va in standby, SIGUSR2 = si risveglia.\n",
             CARBONELLA_VERSION);
 }
@@ -2540,6 +2579,7 @@ int main(int argc, char **argv)
     App *a = xcalloc(1, sizeof *a);
     const char *sim = NULL, *keys = NULL, *books = NULL;
     int tasti = 0, ultimo = 0, sheet = 0;
+    const char *board = NULL;
     snprintf(a->base, sizeof a->base, "/mnt/us/carbonella");
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--base") && i + 1 < argc)
@@ -2554,6 +2594,8 @@ int main(int argc, char **argv)
             tasti = 1;
         else if (!strcmp(argv[i], "--copertine"))
             sheet = 1;
+        else if (!strcmp(argv[i], "--tavola") && i + 1 < argc)
+            board = argv[++i];
         else if (!strcmp(argv[i], "--versione")) {
             printf("carbonella %s\n", CARBONELLA_VERSION);
             return 0;
@@ -2617,7 +2659,12 @@ int main(int argc, char **argv)
     canvas_init(&a->cv, a->W, a->H);
     layout_from_settings(a);
 
-    if (sheet) {
+    if (board) {
+        int r = cover_board(board);
+        input_close();
+        display_close();
+        return r ? 1 : 0;
+    } else if (sheet) {
         cover_sheet(a);
     } else if (tasti) {
         key_test(a);

@@ -69,6 +69,7 @@ typedef struct {
     int page;
     int turns, unsaved;
     long long session_start;
+    long long last_turn; /* last page turn of the session (reading time pauses after READ_IDLE_S) */
     int session_pages;
     double cal_bytes, cal_pages; /* calibration of bytes per page, from the chapters paginated */
     int cal_last_spine;
@@ -127,6 +128,15 @@ static void full(App *a, RefreshKind kind)
 }
 
 /* Minutes read today (sessions in letture.tsv, plus the one in progress). */
+/* Simone (17 nov): if no page is turned for READ_IDLE_S, the reading time stops counting. The session
+ * counts up to the last page turn plus at most READ_IDLE_S; the next turn starts a new session. */
+#define READ_IDLE_S (5 * 60)
+static long long session_end(const App *a, long long now)
+{
+    long long cap = a->last_turn + READ_IDLE_S;
+    return now < cap ? now : cap;
+}
+
 static int minutes_today(App *a)
 {
     if (g_sim)
@@ -154,8 +164,10 @@ static int minutes_today(App *a)
         }
         free(s);
     }
-    if (a->book && a->session_start)
-        secs += now - (a->session_start > midnight ? a->session_start : midnight);
+    if (a->book && a->session_start) {
+        long long d = session_end(a, now) - (a->session_start > midnight ? a->session_start : midnight);
+        secs += d > 0 ? d : 0;
+    }
     return (int)(secs / 60);
 }
 
@@ -698,6 +710,14 @@ static void turn(App *a, int dir)
     }
     if (!ok)
         return;
+    long long now = time(NULL);
+    if (a->session_start && now - a->last_turn > READ_IDLE_S) { /* back after a pause: new session */
+        reading_log(a->data, a->entry->path, a->session_start, session_end(a, now), a->session_pages);
+        log_msg("reading paused %lld s: new session", now - a->last_turn);
+        a->session_start = now;
+        a->session_pages = 0;
+    }
+    a->last_turn = now;
     a->session_pages++;
     if (++a->turns >= a->flash_every)
         kind = REFRESH_FULL;
@@ -1100,7 +1120,7 @@ static void history_load(App *a, History *h)
     }
     free(s);
     if (a->book && a->session_start)
-        history_add(h, today, a->session_start, now);
+        history_add(h, today, a->session_start, session_end(a, now));
 }
 
 static void bar(Canvas *c, int x, int y, int w, double frac)
@@ -1895,7 +1915,7 @@ static Next run_reader(App *a)
     /* skip empty chapters (cover pages with only an image) at the very beginning */
     while (a->entry->percent < 0 && a->ch->nblocks == 0 && a->spine + 1 < a->book->nspine)
         load_chapter(a, a->spine + 1, 0, 0);
-    a->session_start = time(NULL);
+    a->session_start = a->last_turn = time(NULL);
     a->session_pages = 0;
     a->turns = 0;
     render_page(a, REFRESH_FULL);
@@ -1924,7 +1944,7 @@ static Next run_reader(App *a)
         }
     }
     save_position(a);
-    reading_log(a->data, a->entry->path, a->session_start, time(NULL), a->session_pages);
+    reading_log(a->data, a->entry->path, a->session_start, session_end(a, time(NULL)), a->session_pages);
     a->session_start = 0;
     close_book(a);
     return next;

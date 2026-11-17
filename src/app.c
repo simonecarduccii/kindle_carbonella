@@ -2175,8 +2175,11 @@ static void info_row(App *a, float x, float y, const char *left, const char *rig
     }
 }
 
+/* Pages shown on the Home: the printed edition when known (Simone, 17 nov), else the screen pages. */
 static int pages_of(App *a, const LibEntry *e)
 {
+    if (e->print_pages > 0)
+        return e->print_pages;
     if (e->pages > 0)
         return e->pages;
     if (e->text_bytes <= 0)

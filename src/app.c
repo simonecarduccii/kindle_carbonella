@@ -220,8 +220,22 @@ static void standby(App *a)
 }
 
 /* input_wait that also handles standby. After a standby it returns K_NONE (nothing to do). */
+/* Tell powerd that someone is reading, so the automatic standby waits (at most once a minute: on the
+ * K4 lipc costs a few tens of ms, so it runs in the background). */
+static void touch_screensaver(void)
+{
+    static time_t last;
+    time_t now = time(NULL);
+    if (g_sim || now - last < 60)
+        return;
+    last = now;
+    if (system("lipc-set-prop com.lab126.powerd touchScreenSaverTimeout 1 >/dev/null 2>&1 &") != 0)
+        log_msg("touchScreenSaverTimeout failed");
+}
+
 static Key wait_key(App *a, int *raw)
 {
+    touch_screensaver();
     Key k = input_wait(a->standby_seen ? -1 : a->idle_ms, raw);
     if (k == K_SLEEP) {
         standby(a);

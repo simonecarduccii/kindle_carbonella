@@ -2,6 +2,17 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Finché siamo a `0.x` tutto può cambiare.
 
+## v0.5.2 · 2026-11-17
+
+- **Standby di nuovo funzionante**: premendo il tasto di accensione compare la copertina del libro.
+  - Il problema: `carbonella.sh` metteva `preventScreenSaver` a 1, e con quello il Kindle ignora il tasto
+    di accensione ("Prevent screen saver set. Ignoring power button" in /var/log/messages).
+  - Ora resta a 0. Mentre leggi, il lettore rinvia lo standby automatico al massimo una volta al minuto
+    (`touchScreenSaverTimeout`).
+- Il "watcher" degli eventi di standby legge un evento alla volta, così non resta bloccato nel buffer
+  della pipe.
+- All'avvio vengono chiusi i watcher rimasti dagli avvii precedenti (ne erano rimasti 8).
+
 ## v0.5.1 · 2026-11-17
 
 Simone ha aggiunto una voce al menu della Home mentre installavo la v0.5.0.

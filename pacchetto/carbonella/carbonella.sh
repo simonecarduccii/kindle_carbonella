@@ -53,7 +53,9 @@ fi
 
 # Lascia il tempo a KUAL di chiudere il suo menu.
 sleep 1
-lipc-set-prop com.lab126.powerd preventScreenSaver 1 2>/dev/null
+# Niente preventScreenSaver: con quello powerd ignora il tasto di accensione e lo standby non arriva
+# (v0.5.2). Il lettore rinvia lo standby automatico mentre leggi (touchScreenSaverTimeout).
+lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
 say "fermo il framework"
 /etc/init.d/framework stop
 FRAMEWORK_STOPPED=1
@@ -66,8 +68,14 @@ READER=$!
 
 # Standby: powerd (il servizio del Kindle che gestisce il tasto di accensione) annuncia quando il
 # Kindle va in standby e quando si risveglia; noi lo diciamo al lettore.
+# Prima chiudiamo i watcher rimasti da avvii precedenti (se il lettore era stato chiuso da fuori).
+for P in $(ps | grep goingToScreenSaver | grep -v grep | awk '{print $1}'); do kill "$P" 2>/dev/null; done
 if which lipc-wait-event >/dev/null 2>&1; then
-    ( lipc-wait-event -m com.lab126.powerd goingToScreenSaver,outOfScreenSaver | while read EV RESTO; do
+    # Un evento alla volta (senza -m): lipc-wait-event esce e scrive subito, niente buffer nella pipe.
+    ( while kill -0 "$READER" 2>/dev/null; do
+        EV=$(lipc-wait-event com.lab126.powerd goingToScreenSaver,outOfScreenSaver 2>/dev/null)
+        EV=${EV%% *}
+        [ -z "$EV" ] && { sleep 1; continue; }
         say "powerd: $EV"
         case "$EV" in
             goingToScreenSaver) kill -USR1 "$READER" 2>/dev/null ;;

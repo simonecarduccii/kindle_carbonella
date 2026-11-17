@@ -27,7 +27,7 @@ trap '' HUP TERM INT
 restore() {
     say "ripristino"
     [ -n "$WATCHER" ] && kill "$WATCHER" 2>/dev/null
-    killall lipc-wait-event 2>/dev/null
+    killall -9 lipc-wait-event 2>/dev/null # ignora SIGTERM
     lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
     if [ -n "$FRAMEWORK_STOPPED" ]; then
         say "riavvio il framework"
@@ -69,7 +69,7 @@ READER=$!
 # Standby: powerd (il servizio del Kindle che gestisce il tasto di accensione) annuncia quando il
 # Kindle va in standby e quando si risveglia; noi lo diciamo al lettore.
 # Prima chiudiamo i watcher rimasti da avvii precedenti (se il lettore era stato chiuso da fuori).
-for P in $(ps | grep goingToScreenSaver | grep -v grep | awk '{print $1}'); do kill "$P" 2>/dev/null; done
+for P in $(ps | grep goingToScreenSaver | grep -v grep | awk '{print $1}'); do kill -9 "$P" 2>/dev/null; done
 if which lipc-wait-event >/dev/null 2>&1; then
     # Un evento alla volta (senza -m): lipc-wait-event esce e scrive subito, niente buffer nella pipe.
     ( while kill -0 "$READER" 2>/dev/null; do

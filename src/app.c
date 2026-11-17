@@ -2104,53 +2104,33 @@ static void frame_clip(Canvas *cv, float x, float y)
     canvas_clip(cv, (int)lrintf(x), (int)lrintf(y), (int)lrintf(G_CW), (int)lrintf(G_FRAME_H));
 }
 
-/* "Raccolte" as two office binders side by side (Simone chose variant E, 2026-11-17): dark case, grey
- * spine, white-outlined mark, white label with two rules, ring hole. The name goes on the first label,
- * "N libri" on the second; no book covers. Sizes from the Figma card (172 x 229 at +4). */
-static void binder_label_text(App *a, float lx, float ly, const char *name)
-{
-    char words[128], line[128] = "";
-    snprintf(words, sizeof words, "%s", name);
-    int lines = 0, cx = (int)lrintf(lx + 28);
-    for (char *w = strtok(words, " "); w && lines < 2; w = strtok(NULL, " ")) {
-        char trial[128];
-        snprintf(trial, sizeof trial, "%s%s%s", line, *line ? " " : "", w);
-        if (*line && font_text_width(FACE_BASK, 12, trial) > 50) {
-            int tw = font_text_width(FACE_BASK, 12, line);
-            font_draw_text(&a->cv, FACE_BASK, 12, cx - tw / 2, (int)lrintf(ly + 16 + lines * 14), line, G_NERO, 52);
-            lines++;
-            snprintf(line, sizeof line, "%s", w);
-        } else
-            snprintf(line, sizeof line, "%s", trial);
-    }
-    if (*line && lines < 2) {
-        int tw = font_text_width(FACE_BASK, 12, line);
-        if (tw > 52)
-            tw = 52;
-        font_draw_text(&a->cv, FACE_BASK, 12, cx - tw / 2, (int)lrintf(ly + 16 + lines * 14), line, G_NERO, 52);
-    }
-}
-
-static void folder_binders(App *a, const Cell *c, float x, float y)
+/* "Raccolte" as two office binders side by side: Figma component "Raccolta 600x800 / Due faldoni"
+ * (99:1927, as adjusted by Simone on 2026-11-17), scaled to the 172 x 229 cover box. Blank labels: the
+ * name and the count stay in the info row under the cell. */
+static void folder_binders(App *a, float x, float y)
 {
     Canvas *cv = &a->cv;
-    static const uint8_t spine[2] = { G_SMOG, G_CENERE };
+    const float sx = 172.064f / 600.0f, sy = 229.41f / 800.0f;
+    x += 4.3f;
+    y += 4.3f;
+#define BX(v) ((int)lrintf(x + (v) * sx))
+#define BY(v) ((int)lrintf(y + (v) * sy))
+#define BOX(l, t, w, h, ink) canvas_fill(cv, BX(l), BY(t), BX((l) + (w)) - BX(l), BY((t) + (h)) - BY(t), ink)
+    static const uint8_t spine[2] = { 255 - 0x88, 255 - 0x55 };
     for (int i = 0; i < 2; i++) {
-        int bx = (int)lrintf(x + 4 + i * 88), by = (int)lrintf(y + 4);
-        canvas_fill(cv, bx, by, 84, 229, G_GRAFITE);          /* case */
-        canvas_fill(cv, bx + 7, by + 6, 70, 217, spine[i]);   /* spine */
-        canvas_frame(cv, bx + 32, by + 18, 20, 20, 2, G_CARTA); /* mark */
-        canvas_fill(cv, bx + 14, by + 58, 56, 96, G_CARTA);   /* label */
-        canvas_fill(cv, bx + 18, by + 96, 48, 2, G_CENERE);
-        canvas_fill(cv, bx + 18, by + 128, 48, 2, G_CENERE);
-        canvas_disc(cv, bx + 42.0f, by + 192.0f, 13.0f, G_LEGGERO); /* ring */
-        canvas_disc(cv, bx + 42.0f, by + 192.0f, 9.0f, G_NERO);     /* hole */
+        float o = i * 307.0f;
+        BOX(o, 0, 293, 800, 255 - 0x22);                 /* case */
+        BOX(o + 24, 21, 245, 758, spine[i]);             /* spine */
+        canvas_frame(cv, BX(o + 112), BY(63), BX(o + 182) - BX(o + 112), BY(133) - BY(63), 2, G_CARTA); /* mark */
+        BOX(o + 49, 212, 195, 335, G_CARTA);             /* label */
+        BOX(o + 63, 324, 167, 7, 255 - 0x55);            /* rules */
+        BOX(o + 63, 435, 167, 7, 255 - 0x55);
+        canvas_disc(cv, x + (o + 146.5f) * sx, y + 670.5f * sy, 45.5f * sx, 255 - 0xDD); /* ring */
+        canvas_disc(cv, x + (o + 146.5f) * sx, y + 670.5f * sy, 31.5f * sx, G_NERO);     /* hole */
     }
-    binder_label_text(a, x + 4 + 14, y + 4 + 58, c->name);
-    char n[24];
-    snprintf(n, sizeof n, c->count == 1 ? "%d libro" : "%d libri", c->count);
-    int tw = font_text_width(FACE_MONO_MEDIUM, 11, n);
-    font_draw_text(cv, FACE_MONO_MEDIUM, 11, (int)lrintf(x + 4 + 88 + 42) - tw / 2, (int)lrintf(y + 4 + 118), n, G_NERO, 54);
+#undef BOX
+#undef BX
+#undef BY
 }
 
 static void draw_cell(App *a, const Cell *c, float x, float y, int focus)
@@ -2163,7 +2143,7 @@ static void draw_cell(App *a, const Cell *c, float x, float y, int focus)
     if (c->kind == CELL_BOOK) {
         cover_draw(cv, x + 4.3f, y + 4.3f, 172.064f, 229.41f, c->e->title, c->e->author, c->e->publisher, 0);
     } else {
-        folder_binders(a, c, x, y);
+        folder_binders(a, x, y);
     }
     canvas_noclip(cv);
     if (focus)

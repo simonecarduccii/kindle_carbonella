@@ -34,23 +34,29 @@ static int battery_percent(void)
     return v;
 }
 
-/* Charging: the battery current is positive while the charger feeds it (K4 yoshi_battery). Read at most
- * every 30 s. In the simulator, CARBONELLA_CARICA=1 shows the bolt. */
-static int battery_charging(void)
+/* Charging (K4 yoshi_battery): the battery current is positive while the charger feeds it. The USB cable
+ * left in for usbnet keeps a small current flowing even when the battery is full, so the bolt shows only
+ * while current > 0 and the level is below 100%: a full battery on the cable is not "in carica". Read at
+ * most every 30 s; each change of level or state goes to the log with the current, to check the rule on the device.
+ * In the simulator, CARBONELLA_CARICA=1 shows the bolt. */
+static int battery_charging(int pct)
 {
     if (g_sim)
         return getenv("CARBONELLA_CARICA") != NULL;
     static time_t last;
-    static int charging;
+    static int charging, logged = -1, logged_pct = -1;
     time_t now = time(NULL);
     if (last && now - last < 30)
         return charging;
     last = now;
     char *s = read_file("/sys/devices/system/yoshi_battery/yoshi_battery0/battery_current", NULL);
-    int was = charging;
-    charging = s && atoi(s) > 0;
-    if (s && charging != was)
-        log_msg("battery current %d mA: %s", atoi(s), charging ? "charging" : "not charging");
+    int ma = s ? atoi(s) : 0;
+    charging = s && ma > 0 && pct >= 0 && pct < 100;
+    if (s && (charging != logged || pct != logged_pct)) {
+        log_msg("battery %d%%, current %d mA: %s", pct, ma, charging ? "charging" : "not charging");
+        logged = charging;
+        logged_pct = pct;
+    }
     free(s);
     return charging;
 }
@@ -92,7 +98,7 @@ void ui_header(Canvas *c, const char *left, const char *center, double bar)
         int fw = (int)lrintf(18.0f * (pct > 100 ? 100 : pct) / 100);
         canvas_fill(c, x + 3, 20, fw < 1 ? 1 : fw, 7, G_NERO);
     }
-    if (battery_charging()) { /* "In carica" (Simone, 17 nov): a bolt 8 x 14 over the body, white edge */
+    if (battery_charging(pct)) { /* "In carica" (Simone, 17 nov): a bolt 8 x 14 over the body, white edge */
         static const float BOLT[12] = { 6, 0, 0, 7.8f, 3.6f, 8, 2, 14, 8, 6.1f, 4.4f, 6 };
         float bx = x + 8, by = 17 - 0.66f, pts[12];
         for (int dy = -1; dy <= 1; dy++)

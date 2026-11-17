@@ -2,6 +2,12 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Dalla 1.0.0 le versioni MINORE aggiungono cose, le CORREZIONE sistemano.
 
+## v1.0.5 · 2026-11-17
+
+- **Mostra sottolineature** (Impostazioni, pagina 2, prima voce di ARCHIVIO): apre "I miei ritagli",
+  il file delle sottolineature del Kindle (`My Clippings.txt`). Il file non compare più tra i libri
+  della Home: non è cancellato, si apre solo da qui. Posizioni come nel frame di Simone (SISTEMA a 354).
+
 ## v1.0.4 · 2026-11-17
 
 Le nuove schermate di Simone in Figma.

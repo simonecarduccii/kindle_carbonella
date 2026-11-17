@@ -777,7 +777,7 @@ static void key_test(App *a);
 
 enum {
     S_GOALS, S_GOAL, S_YEAR, S_FONT, S_SIZE, S_LINE, S_MARGIN, S_VIEW, /* page 1, as in Figma */
-    S_SHOWARCH, S_DELARCH,                                             /* page 2, v1.0.4 */
+    S_CLIPS, S_SHOWARCH, S_DELARCH,                                    /* page 2, v1.0.4 */
     S_NAME, S_WIFI, S_DATE, S_STANDBY, S_INFO, S_KINDLE,
     S_N
 };
@@ -790,7 +790,7 @@ typedef struct {
 
 /* "04 · Impostazioni": header, title, groups (label + rows of 56 px), "Pagina 1 di 2" at the bottom.
  * Positions from the two frames: page 1 LETTURA label at 150, rows from 174; ASPETTO label at 370,
- * rows from 394. Page 2 ARCHIVIO label at 142, rows from 166; SISTEMA label at 298, rows from 322.
+ * rows from 394. Page 2 ARCHIVIO label at 142, rows from 166; SISTEMA label at 354, rows from 378.
  * Texts exactly as in the frames. */
 static const SetItem SET[S_N] = {
     { 0, 150, 174, "Lettura", "Guarda gli obiettivi", 0 }, /* texts verbatim from Figma */
@@ -801,14 +801,15 @@ static const SetItem SET[S_N] = {
     { 0, 0, 506, NULL, "Interlinea", 1 },
     { 0, 0, 562, NULL, "Margini", 1 },
     { 0, 0, 618, NULL, "Visualizzazione", 1 },
-    { 1, 142, 166, "Archivio", "Mostra archivio", 0 }, /* v1.0.4 */
-    { 1, 0, 222, NULL, "Elimina archivio definitivamente", 0 },
-    { 1, 298, 322, "Sistema", "Nome dispositivo", 0 },
-    { 1, 0, 378, NULL, "Wi-Fi", 0 },
-    { 1, 0, 434, NULL, "Data e ora", 0 },
-    { 1, 0, 490, NULL, "Standby automatico dopo", 1 }, /* v0.6 */
-    { 1, 0, 546, NULL, "Informazioni", 0 },
-    { 1, 0, 602, NULL, "Torna al kindle", 0 },
+    { 1, 142, 166, "Archivio", "Mostra sottolineature", 0 }, /* v1.0.4 */
+    { 1, 0, 222, NULL, "Mostra archivio", 0 },
+    { 1, 0, 278, NULL, "Elimina archivio definitivamente", 0 },
+    { 1, 354, 378, "Sistema", "Nome dispositivo", 0 },
+    { 1, 0, 434, NULL, "Wi-Fi", 0 },
+    { 1, 0, 490, NULL, "Data e ora", 0 },
+    { 1, 0, 546, NULL, "Standby automatico dopo", 1 }, /* v0.6 */
+    { 1, 0, 602, NULL, "Informazioni", 0 },
+    { 1, 0, 658, NULL, "Torna al kindle", 0 },
 };
 
 /* Wi-Fi of the Kindle: -1 unknown (simulator), 0 off, 1 on. */
@@ -926,8 +927,9 @@ static void settings_draw(App *a, int page, int sel)
 
 /* The settings screen. Up/down move, centre and right go to the next value, left to the previous one,
  * Back closes. Returns 1 to rescan the books, 2 to go back to the Kindle (timeout), 3 to show the
- * archive, 0 otherwise. */
+ * archive, 4 to open the highlights, 0 otherwise. */
 static int goals_run(App *a);
+static LibEntry *clippings_entry(App *a);
 static int delete_archive(App *a);
 
 static int settings_run(App *a)
@@ -949,13 +951,23 @@ static int settings_run(App *a)
         } else if (k == K_DOWN) {
             sel = (sel + 1) % S_N;
         } else if (k == K_PREV) {
-            sel = page == 0 ? S_SHOWARCH : 0;
+            sel = page == 0 ? S_CLIPS : 0;
         } else if (k == K_NEXT) {
-            sel = page == 0 ? S_SHOWARCH : 0;
+            sel = page == 0 ? S_CLIPS : 0;
         } else if (k == K_SELECT || k == K_RIGHT || k == K_LEFT) {
             if (sel == S_KINDLE && k == K_SELECT) {
                 result = 2;
                 break;
+            }
+            if (sel == S_CLIPS && (k == K_SELECT || k == K_RIGHT)) {
+                if (clippings_entry(a)) {
+                    result = 4; /* the Kindle's highlights open in the reader */
+                    break;
+                }
+                message(a, "Nessuna sottolineatura", "Il Kindle non ha ancora salvato ritagli.", REFRESH_PARTIAL);
+                input_wait(2500, NULL);
+                shown = -1;
+                continue;
             }
             if (sel == S_SHOWARCH && (k == K_SELECT || k == K_RIGHT)) {
                 result = 3; /* the grid of the archive opens from the Home */
@@ -1957,6 +1969,23 @@ static int collections(App *a, char names[][128], int max);
 
 #define ARCHIVE_NAME "Archivio" /* "Archivia libro" moves books here; shown only from the settings (v1.0.4) */
 
+/* The Kindle's own file of highlights and notes ("My Clippings.txt", "I miei ritagli" in Italian). */
+static int is_clippings(const LibEntry *e)
+{
+    const char *b = strrchr(e->path, '/');
+    b = b ? b + 1 : e->path;
+    return !strcasecmp(b, "My Clippings.txt") || !strcasecmp(b, "I miei ritagli.txt") ||
+           (e->title && !strcasecmp(e->title, "I miei ritagli"));
+}
+
+static LibEntry *clippings_entry(App *a)
+{
+    for (int i = 0; i < a->lib.n; i++)
+        if (is_clippings(&a->lib.e[i]))
+            return &a->lib.e[i];
+    return NULL;
+}
+
 static int build_cells(App *a, const char *folder, int read_view, Cell **out)
 {
     Cell *cells = xcalloc(a->lib.n + 2 + 64, sizeof(Cell)); /* + up to 64 empty collections */
@@ -1968,6 +1997,8 @@ static int build_cells(App *a, const char *folder, int read_view, Cell **out)
         int done = e->percent >= 100;
         char f[128];
         folder_of(a, e, f, sizeof f);
+        if (is_clippings(e))
+            continue; /* "I miei ritagli": only from Impostazioni > Mostra sottolineature (v1.0.4) */
         if (!(folder && strcmp(folder, ARCHIVE_NAME) == 0) && strcmp(f, ARCHIVE_NAME) == 0)
             continue; /* archived: out of the Home and of the books read */
         if (folder && strcmp(folder, ARCHIVE_NAME) == 0) { /* "Mostra archivio": read ones too */
@@ -2478,7 +2509,7 @@ static int home_menu(App *a, LibEntry *focus, const char *folder)
             return changed;
         case H_SETTINGS: {
             int r = settings_run(a);
-            return r == 2 ? 2 : r == 3 ? 3 : r == 1 ? 1 : changed;
+            return r == 2 ? 2 : r == 3 ? 3 : r == 4 ? 4 : r == 1 ? 1 : changed;
         }
         case PANEL_END: return k == K_HOME ? changed : 2;
         default: return changed;
@@ -2529,6 +2560,10 @@ static int grid_view(App *a, const char *folder, int read_view, LibEntry *focus)
             }
             if (k == K_MENU) {
                 int m = home_menu(a, NULL, NULL);
+                if (m == 4 && (g_selected = clippings_entry(a))) {
+                    result = GO_READER;
+                    break;
+                }
                 if (m == 3) {
                     int r = grid_view(a, ARCHIVE_NAME, 0, NULL);
                     if (r != -1) {
@@ -2590,6 +2625,10 @@ static int grid_view(App *a, const char *folder, int read_view, LibEntry *focus)
             continue;
         case K_MENU: {
             int m = home_menu(a, cells[sel].kind == CELL_BOOK ? cells[sel].e : NULL, folder);
+            if (m == 4 && (g_selected = clippings_entry(a))) { /* "Mostra sottolineature" */
+                result = GO_READER;
+                goto out;
+            }
             if (m == 3) { /* "Mostra archivio" */
                 int r = grid_view(a, ARCHIVE_NAME, 0, NULL);
                 if (r != -1) {

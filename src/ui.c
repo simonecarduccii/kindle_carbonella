@@ -296,12 +296,12 @@ void ui_group_label(Canvas *c, int x, float top, const char *label)
 
 /* ---------------------------------------------------------------- covers */
 
-/* Since v0.6 every book is drawn with one of Simone's five publisher models (Figma, "Libreria
+/* Since v0.6 every book is drawn with one of Simone's publisher models (six since v0.6.3) (Figma, "Libreria
  * componenti" > Frame 6): Sellerio, Adelphi, Einaudi, Feltrinelli, Bompiani. Each model is designed at
  * 240 x 347 and scaled uniformly; when the box has another ratio (standby, 600 x 800) the model is
  * centred and the rest is filled with its background. Colours are the Figma rgb turned into ink (255 - rgb). */
 
-enum { M_SELLERIO, M_ADELPHI, M_EINAUDI, M_FELTRINELLI, M_BOMPIANI, N_MODELS };
+enum { M_SELLERIO, M_ADELPHI, M_EINAUDI, M_FELTRINELLI, M_BOMPIANI, M_MONDADORI, N_MODELS };
 
 static int contains_ci(const char *s, const char *w)
 {
@@ -317,7 +317,7 @@ static int contains_ci(const char *s, const char *w)
 /* The model of a publisher named in dc:publisher, or -1. */
 static int publisher_model(const char *publisher)
 {
-    static const char *NAMES[N_MODELS] = { "sellerio", "adelphi", "einaudi", "feltrinelli", "bompiani" };
+    static const char *NAMES[N_MODELS] = { "sellerio", "adelphi", "einaudi", "feltrinelli", "bompiani", "mondadori" };
     for (int i = 0; i < N_MODELS; i++)
         if (contains_ci(publisher, NAMES[i]))
             return i;
@@ -531,6 +531,28 @@ static void model_bompiani(const Model *m, const char *t, const char *au, const 
     model_text(m, FACE_BASK, 6, 0.10f, 1.3f, 20, 317, 200, 1, 1, ours ? "Bompiani" : pub, 1, G_NERO, 0);
 }
 
+/* Mondadori (v0.6.3): Simone's first model drawn directly at 600 x 800 ("Copertine 600×800" in Figma,
+ * auto layout). Head 134 px with the round logo and "Oscar / Libri", centre with author, title and the
+ * illustration at the bottom, foot with the publisher. */
+static void model_mondadori(const Model *m, const char *t, const char *au, const char *pub, int ours)
+{
+    mrect(m, 0, 0, 600, 800, 68); /* #BBB */
+    canvas_disc(m->c, m->ox + 55 * m->s, m->oy + 67 * m->s, 32 * m->s, G_GRAFITE); /* logo */
+    if (ours) {
+        model_text(m, FACE_MONO_BOLD, 16, 0.09f, 1.3f, 100, 38, 477, 0, 1, "Oscar", 1, G_NERO, 0);
+        model_text(m, FACE_MONO_BOLD, 16, 0.09f, 1.3f, 100, 59, 477, 0, 1, "Libri", 1, G_NERO, 0);
+    }
+    int na = model_text(m, FACE_BASK, 32, 0.07f, 1.3f, 35, 173, 530, 0, 2, au, 0, G_NERO, 0);
+    float ttop = 173 + lines_h(32, 1.3f, na) + 10;
+    int nt = model_text(m, FACE_BASK, 40, 0.07f, 1.3f, 35, ttop, 530, 0, 3, t, 0, G_NERO, 0);
+    float ill_top = 376, below = ttop + lines_h(40, 1.3f, nt) + 30;
+    if (below > ill_top)
+        ill_top = below;
+    if (684 - ill_top > 40)
+        mrect(m, 35, ill_top, 530, 684 - ill_top, G_CENERE); /* "Illustrazione" #666 */
+    model_text(m, FACE_BASK, 16, 0, 1.25f, 23, 752, 554, 0, 1, ours ? "Mondadori" : pub, 1, G_NERO, 0);
+}
+
 /* Draws the cover of a book in the box (x, y, w, h). border: width of a black outline (0 = none);
  * the white Bompiani always gets at least 1 px, or it would vanish on the white page. */
 void cover_draw(Canvas *c, float x, float y, float w, float h, const char *title, const char *author,
@@ -554,15 +576,18 @@ void cover_draw(Canvas *c, float x, float y, float w, float h, const char *title
     c->cx1 = cx1;
     c->cy1 = cy1;
 
-    float s = w / 240 < h / 347 ? w / 240 : h / 347;
-    Model m = { c, x + (w - 240 * s) / 2, y + (h - 347 * s) / 2, s };
-    static const uint8_t BG[N_MODELS] = { 221, 68, 68, 68, G_CARTA };
+    /* models are 240 x 347, Mondadori is already 600 x 800 */
+    float bw = model == M_MONDADORI ? 600 : 240, bh = model == M_MONDADORI ? 800 : 347;
+    float s = w / bw < h / bh ? w / bw : h / bh;
+    Model m = { c, x + (w - bw * s) / 2, y + (h - bh * s) / 2, s };
+    static const uint8_t BG[N_MODELS] = { 221, 68, 68, 68, G_CARTA, 68 };
     canvas_fill(c, ix, iy, iw, ih, BG[model]);
     switch (model) {
     case M_SELLERIO: model_sellerio(&m, t, au, pub, ours); break;
     case M_ADELPHI: model_adelphi(&m, t, au, pub, ours); break;
     case M_EINAUDI: model_einaudi(&m, t, au, pub, ours); break;
     case M_FELTRINELLI: model_feltrinelli(&m, t, au, pub, ours); break;
+    case M_MONDADORI: model_mondadori(&m, t, au, pub, ours); break;
     default: model_bompiani(&m, t, au, pub, ours); break;
     }
     int b = border > 0 ? (int)lrintf(border) : model == M_BOMPIANI ? 1 : 0;

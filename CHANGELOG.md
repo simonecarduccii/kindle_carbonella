@@ -2,6 +2,13 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Finché siamo a `0.x` tutto può cambiare.
 
+## v0.6.3 · 2026-11-17
+
+- **Nuovo modello di copertina: Mondadori**, disegnato da Simone direttamente a 600×800. Testa con il
+  logo tondo e "Oscar / Libri", autore e titolo in Libre Baskerville, illustrazione #666, "MONDADORI" in
+  fondo. Ora i modelli sono sei: anche i libri senza editore noto possono ricevere Mondadori, quindi
+  alcune copertine cambiano modello.
+
 ## v0.6.2 · 2026-11-17
 
 - Pannello delle raccolte (*Aggiungi alla raccolta*): bordo di 1 px #222 intorno, come nel frame di Simone.

@@ -2496,12 +2496,13 @@ static void cover_sheet(App *a)
         { "Cecità", "José Saramago", "Feltrinelli" },
         { "Cecità", "José Ernatdesaramago", "Bompiani" },
         { "Il barone rampante", "Italo Calvino", "Mondadori" },
+        { "Il nome della rosa", "Umberto Eco", "La nave di Teseo" },
     };
     canvas_clear(&a->cv, G_CARTA);
-    for (int i = 0; i < 6; i++) {
-        float x = 24 + (i % 3) * 192, y = 24 + (i / 3) * 384;
-        cover_draw(&a->cv, x, y, 168, 243, B[i][0], B[i][1], B[i][2], 0);
-        font_draw_text(&a->cv, FACE_MONO, 14, (int)x, (int)y + 268, B[i][2], G_NERO, 168);
+    for (int i = 0; i < 7; i++) {
+        float x = 24 + (i % 3) * 192, y = 16 + (i / 3) * 264;
+        cover_draw(&a->cv, x, y, 168, 224, B[i][0], B[i][1], B[i][2], 0);
+        font_draw_text(&a->cv, FACE_MONO, 14, (int)x, (int)y + 242, B[i][2], G_NERO, 168);
     }
     full(a, REFRESH_FULL);
 }

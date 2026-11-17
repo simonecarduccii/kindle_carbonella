@@ -24,6 +24,9 @@
 #include <string.h>
 #include <strings.h>
 #include <time.h>
+#include <dirent.h>
+#include <errno.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 volatile int g_quit;
@@ -463,6 +466,9 @@ static int load_chapter(App *a, int spine, int which_page, uint32_t pos)
     return 0;
 }
 
+static int page_has_bookmark(App *a);
+static void draw_bookmark_corner(App *a);
+
 static void draw_page(App *a)
 {
     canvas_clear(&a->cv, G_CARTA);
@@ -474,6 +480,8 @@ static void draw_page(App *a)
     book_pages(a, &p, &t);
     char pos[48];
     snprintf(pos, sizeof pos, "%d di %d", p, t);
+    if (page_has_bookmark(a))
+        draw_bookmark_corner(a);
     ui_progress(&a->cv, a->lp.margin_x, a->W - 2 * a->lp.margin_x, a->H, NULL, pos, NULL, percent_of(a) / 100.0,
                 G_VELO);
 }
@@ -607,7 +615,7 @@ static void key_test(App *a);
 
 enum {
     S_GOAL, S_YEAR, S_FONT, S_SIZE, S_LINE, S_MARGIN, S_FLASH, S_VIEW, /* page 1, as in Figma */
-    S_NAME, S_WIFI, S_DATE, S_INFO, S_KINDLE, S_KEYS, S_RESCAN,        /* page 2 */
+    S_NAME, S_WIFI, S_DATE, S_INFO, S_KINDLE,                          /* page 2 */
     S_N
 };
 
@@ -618,10 +626,10 @@ typedef struct {
 
 /* "04 · Impostazioni": header, title, groups (label + rows of 56 px), "Pagina 1 di 2" at the bottom.
  * Positions from the two frames: page 1 LETTURA label at 150, rows from 174; ASPETTO label at 314,
- * rows from 338. Page 2 SISTEMA label at 142, rows from 166; then our own group STRUMENTI. */
+ * rows from 338. Page 2 SISTEMA label at 142, rows from 166. Texts exactly as in the frames. */
 static const SetItem SET[S_N] = {
-    { 0, 150, 174, "Lettura", "Obiettivo giornaliero" },
-    { 0, 0, 230, NULL, "Libri da leggere quest'anno" },
+    { 0, 150, 174, "Lettura", "Obbiettivo giornaliero" }, /* texts verbatim from Figma */
+    { 0, 0, 230, NULL, "Libri da leggere quest’anno" },
     { 0, 314, 338, "Aspetto", "Carattere" },
     { 0, 0, 394, NULL, "Dimensione" },
     { 0, 0, 450, NULL, "Interlinea" },
@@ -632,9 +640,7 @@ static const SetItem SET[S_N] = {
     { 1, 0, 222, NULL, "Wi-Fi" },
     { 1, 0, 278, NULL, "Data e ora" },
     { 1, 0, 334, NULL, "Informazioni" },
-    { 1, 0, 390, NULL, "Torna al Kindle" },
-    { 1, 474, 498, "Strumenti", "Prova dei tasti" },
-    { 1, 0, 554, NULL, "Aggiorna l'elenco dei libri" },
+    { 1, 0, 390, NULL, "Torna al kindle" },
 };
 
 /* Wi-Fi of the Kindle: -1 unknown (simulator), 0 off, 1 on. */
@@ -702,8 +708,7 @@ static void set_row(App *a, int i, int focus)
     char v[160];
     set_value(a, i, v, sizeof v);
     ui_menu_row(&a->cv, 32, SET[i].row_top, a->W - 64, SET[i].label, v,
-                i == S_RESCAN ? ICON_PLUS : i == S_NAME || i == S_DATE || i == S_INFO ? ICON_NONE : ICON_ARROW,
-                focus);
+                ICON_ARROW, focus); /* as in Figma: every row has the arrow */
 }
 
 /* Change a setting by one step (dir +1 / -1). Returns 1 if the reading page must be laid out again. */
@@ -776,15 +781,6 @@ static int settings_run(App *a)
                 result = 2;
                 break;
             }
-            if (sel == S_RESCAN && k == K_SELECT) {
-                result = 1;
-                break;
-            }
-            if (sel == S_KEYS && k == K_SELECT) {
-                key_test(a);
-                shown = -1;
-                continue;
-            }
             relaid |= set_change(a, sel, k == K_LEFT ? -1 : 1);
             if (sel == S_GOAL) { /* the bar in the header changes too */
                 settings_draw(a, page, sel);
@@ -814,19 +810,496 @@ static int settings_run(App *a)
     return result;
 }
 
-/* "02 · Lettura Menù": the panel opens over the page, which stays visible above it (Simone, v0.3);
- * the header shows the book title. Returns where to go after the menu, or -1 to keep reading. */
+/* ------------------------------------------------------------ keyboard */
+
+/* On-screen keyboard for the 5-way pad (search, name of a collection). Returns 1 with the text
+ * in buf, 0 if cancelled. */
+#define KB_ROWS 5
+#define KB_COLS 10
+#define KB_TOP 216
+#define KB_PITCH 64
+static const char *KB_KEYS[KB_ROWS - 1][KB_COLS] = {
+    { "q", "w", "e", "r", "t", "y", "u", "i", "o", "p" },
+    { "a", "s", "d", "f", "g", "h", "j", "k", "l", "'" },
+    { "z", "x", "c", "v", "b", "n", "m", ",", ".", "-" },
+    { "à", "è", "é", "ì", "ò", "ù", "?", "!", ":", ";" },
+};
+/* last row: Spazio (columns 0-4), Cancella (5-6), Fatto (7-9) */
+static int kb_last_key(int col) { return col < 5 ? 0 : col < 7 ? 1 : 2; }
+static const int KB_LAST_START[3] = { 0, 5, 7 }, KB_LAST_SPAN[3] = { 5, 2, 3 };
+static const char *KB_LAST_LABEL[3] = { "Spazio", "Cancella", "Fatto" };
+
+static void kb_key_rect(int r, int c, float *x, float *w)
+{
+    float kw = 536.0f / KB_COLS;
+    if (r < KB_ROWS - 1) {
+        *x = 32 + c * kw;
+        *w = kw;
+    } else {
+        int k = kb_last_key(c);
+        *x = 32 + KB_LAST_START[k] * kw;
+        *w = KB_LAST_SPAN[k] * kw;
+    }
+}
+
+static void kb_draw_key(App *a, int r, int c, int focus)
+{
+    float x, w;
+    kb_key_rect(r, c, &x, &w);
+    int ix = (int)lrintf(x) + 2, iw = (int)lrintf(w) - 4, y = KB_TOP + r * KB_PITCH;
+    canvas_fill(&a->cv, ix, y, iw, 56, focus ? G_NERO : G_CARTA);
+    if (!focus)
+        canvas_frame(&a->cv, ix, y, iw, 56, 2, G_NERO);
+    const char *l = r < KB_ROWS - 1 ? KB_KEYS[r][c] : KB_LAST_LABEL[kb_last_key(c)];
+    Face f = r < KB_ROWS - 1 ? FACE_SANS : FACE_SANS_MEDIUM;
+    int size = r < KB_ROWS - 1 ? 24 : 18;
+    int tw = font_text_width(f, size, l);
+    font_draw_text(&a->cv, f, size, ix + (iw - tw) / 2, ui_baseline(f, size, y + 14, 28), l,
+                   focus ? G_CARTA : G_NERO, 0);
+}
+
+static void kb_draw_field(App *a, const char *buf)
+{
+    canvas_fill(&a->cv, 32, 128, 536, 56, G_CARTA);
+    canvas_frame(&a->cv, 32, 128, 536, 56, 2, G_NERO);
+    int tw = font_text_width(FACE_SANS, 20, buf);
+    int x0 = 48, maxw = 536 - 40;
+    if (tw > maxw) /* long text: show the end */
+        x0 -= tw - maxw;
+    canvas_clip(&a->cv, 34, 130, 532, 52);
+    int end = font_draw_text(&a->cv, FACE_SANS, 20, x0, ui_baseline(FACE_SANS, 20, 128 + 15.5f, 25), buf, G_NERO, 0);
+    canvas_noclip(&a->cv);
+    canvas_fill(&a->cv, end + 2, 128 + 14, 2, 28, G_NERO); /* cursor */
+}
+
+static int keyboard_run(App *a, const char *header, const char *title, char *buf, size_t n)
+{
+    int r = 0, c = 0;
+    canvas_clear(&a->cv, G_CARTA);
+    ui_header(&a->cv, header, NULL, -1);
+    ui_title(&a->cv, 48, title);
+    kb_draw_field(a, buf);
+    for (int i = 0; i < KB_ROWS; i++)
+        for (int j = 0; j < KB_COLS; j++)
+            kb_draw_key(a, i, j, i == r && j == c);
+    const char *hint = "Frecce per scegliere, centro per scrivere, Indietro per annullare";
+    int hw = font_text_width(FACE_MONO, 14, hint);
+    font_draw_text(&a->cv, FACE_MONO, 14, (a->W - hw) / 2, 560, hint, G_CENERE, a->W - 32);
+    full(a, REFRESH_FULL);
+    for (;;) {
+        int raw, or = r, oc = c, typed = 0;
+        Key k = wait_key(a, &raw);
+        switch (k) {
+        case K_UP: r = (r + KB_ROWS - 1) % KB_ROWS; break;
+        case K_DOWN: r = (r + 1) % KB_ROWS; break;
+        case K_LEFT:
+            if (r == KB_ROWS - 1) {
+                int key = kb_last_key(c);
+                c = key == 0 ? KB_LAST_START[2] : KB_LAST_START[key - 1];
+            } else
+                c = (c + KB_COLS - 1) % KB_COLS;
+            break;
+        case K_RIGHT:
+            if (r == KB_ROWS - 1) {
+                int key = kb_last_key(c);
+                c = key == 2 ? 0 : KB_LAST_START[key + 1];
+            } else
+                c = (c + 1) % KB_COLS;
+            break;
+        case K_SELECT: {
+            size_t l = strlen(buf);
+            if (r < KB_ROWS - 1) {
+                const char *s = KB_KEYS[r][c];
+                if (l + strlen(s) < n)
+                    strcat(buf, s);
+            } else if (kb_last_key(c) == 0) {
+                if (l + 1 < n)
+                    strcat(buf, " ");
+            } else if (kb_last_key(c) == 1) {
+                while (l > 0 && ((unsigned char)buf[l - 1] & 0xC0) == 0x80) /* whole UTF-8 letter */
+                    l--;
+                if (l > 0)
+                    buf[l - 1] = 0;
+            } else
+                return 1;
+            typed = 1;
+            break;
+        }
+        case K_BACK:
+        case K_HOME:
+        case K_MENU: return 0;
+        case K_TIMEOUT:
+        case K_QUIT: return 0;
+        default: continue;
+        }
+        if (typed) {
+            kb_draw_field(a, buf);
+            display_update(&a->cv, (Rect){ 32, 128, 536, 56 }, REFRESH_PARTIAL);
+        }
+        if (r != or || c != oc) {
+            kb_draw_key(a, or, oc, 0);
+            kb_draw_key(a, r, c, 1);
+            display_update(&a->cv, (Rect){ 32, KB_TOP + or * KB_PITCH, 536, 56 }, REFRESH_PARTIAL);
+            if (r != or)
+                display_update(&a->cv, (Rect){ 32, KB_TOP + r * KB_PITCH, 536, 56 }, REFRESH_PARTIAL);
+        }
+    }
+}
+
+/* ------------------------------------------------- pages of the whole book */
+
+static uint64_t spine_bytes(App *a, int from, int to)
+{
+    uint64_t b = 0;
+    for (int i = from; i < to && i < a->book->nspine; i++)
+        b += a->book->spine_size[i];
+    return b;
+}
+
+/* First page (1-based, whole book) of spine item s, with the same estimate as book_pages():
+ * the open chapter counts with its real pages, the others from their size. */
+static int spine_first_page(App *a, int s)
+{
+    double bpp = bytes_per_page(a);
+    if (s <= a->spine)
+        return (int)(spine_bytes(a, 0, s) / bpp + 0.5) + 1;
+    return (int)(spine_bytes(a, 0, a->spine) / bpp + 0.5) + a->pg.n +
+           (int)(spine_bytes(a, a->spine + 1, s) / bpp + 0.5) + 1;
+}
+
+static int spine_pages(App *a, int s)
+{
+    if (s == a->spine)
+        return a->pg.n > 0 ? a->pg.n : 1;
+    int n = (int)(a->book->spine_size[s] / bytes_per_page(a) + 0.5);
+    return n > 0 ? n : 1;
+}
+
+/* Book page of byte 'pos' of the text of spine item s (text_len = length of that chapter text). */
+static int page_of_pos(App *a, int s, uint32_t pos, uint32_t text_len)
+{
+    if (s == a->spine && a->pg.n > 0)
+        return spine_first_page(a, s) + pagination_find(&a->pg, pos);
+    int n = spine_pages(a, s);
+    int in = text_len ? (int)((double)pos / text_len * n) : 0;
+    return spine_first_page(a, s) + (in < n ? in : n - 1);
+}
+
+/* Goes to page p of the whole book (as shown in "pag. 12 di 684"). */
+static void goto_page(App *a, int p)
+{
+    int s = 0;
+    while (s + 1 < a->book->nspine && spine_first_page(a, s + 1) <= p)
+        s++;
+    if (s != a->spine && load_chapter(a, s, 0, 0) != 0)
+        return;
+    int in = p - spine_first_page(a, s); /* again: the chapter is now the open one */
+    if (in < 0)
+        in = 0;
+    if (in >= a->pg.n)
+        in = a->pg.n - 1;
+    a->page = in;
+    save_position(a);
+}
+
+/* "Vai a pagina…": the number changes with left/right (1), up/down (10), page keys (100). */
+static int goto_page_run(App *a)
+{
+    int cur, total;
+    book_pages(a, &cur, &total);
+    int p = cur;
+    int first = 1;
+    for (;;) {
+        canvas_clear(&a->cv, G_CARTA);
+        ui_header(&a->cv, a->book->title, NULL, -1);
+        ui_title(&a->cv, 48, "Vai a pagina…");
+        char num[16], of[32];
+        snprintf(num, sizeof num, "%d", p);
+        snprintf(of, sizeof of, "di %d", total);
+        int tw = font_text_width(FACE_MONO_MEDIUM, 64, num);
+        font_draw_text(&a->cv, FACE_MONO_MEDIUM, 64, (a->W - tw) / 2, 330, num, G_NERO, 0);
+        tw = font_text_width(FACE_MONO, 20, of);
+        font_draw_text(&a->cv, FACE_MONO, 20, (a->W - tw) / 2, 380, of, G_GRAFITE, 0);
+        static const char *hint[] = { "‹ ›  una pagina", "su e giù  dieci pagine", "tasti laterali  cento pagine",
+                                      "centro per andare, Indietro per annullare" };
+        for (int i = 0; i < 4; i++) {
+            int hw = font_text_width(FACE_MONO, 14, hint[i]);
+            font_draw_text(&a->cv, FACE_MONO, 14, (a->W - hw) / 2, 480 + i * 26, hint[i], G_CENERE, 0);
+        }
+        full(a, first ? REFRESH_FULL : REFRESH_PARTIAL);
+        first = 0;
+        int raw;
+        Key k = wait_key(a, &raw);
+        int d = k == K_RIGHT ? 1 : k == K_LEFT ? -1 : k == K_UP ? 10 : k == K_DOWN ? -10 : k == K_NEXT ? 100
+                : k == K_PREV ? -100 : 0;
+        if (d) {
+            p += d;
+            p = p < 1 ? 1 : p > total ? total : p;
+        } else if (k == K_SELECT) {
+            goto_page(a, p);
+            return 1;
+        } else if (k == K_BACK || k == K_MENU || k == K_HOME || k == K_TIMEOUT || k == K_QUIT)
+            return 0;
+    }
+}
+
+/* ------------------------------------------------------------ bookmarks */
+
+/* dati/segnalibri.tsv: path, spine, byte, page, a few words of the page. */
+typedef struct {
+    int spine;
+    uint32_t pos;
+    int page;
+    char words[96];
+} Bookmark;
+
+static int bookmarks_load(App *a, Bookmark *out, int max)
+{
+    char path[700];
+    snprintf(path, sizeof path, "%s/segnalibri.tsv", a->data);
+    FILE *f = fopen(path, "r");
+    if (!f)
+        return 0;
+    char line[2048];
+    int n = 0;
+    while (fgets(line, sizeof line, f)) {
+        char *t = strchr(line, '\t');
+        if (!t)
+            continue;
+        *t = 0;
+        if (strcmp(line, a->entry->path) != 0)
+            continue;
+        Bookmark b = { 0 };
+        int off = 0;
+        if (sscanf(t + 1, "%d\t%u\t%d\t%n", &b.spine, &b.pos, &b.page, &off) < 3)
+            continue;
+        snprintf(b.words, sizeof b.words, "%s", off ? t + 1 + off : "");
+        b.words[strcspn(b.words, "\r\n")] = 0;
+        if (out && n < max)
+            out[n] = b;
+        n++;
+    }
+    fclose(f);
+    return n;
+}
+
+/* Bookmark on the page on screen? (its byte falls inside the page) */
+static int page_has_bookmark(App *a)
+{
+    if (!a->entry || !a->ch || a->pg.n == 0)
+        return 0;
+    Bookmark b[64];
+    int n = bookmarks_load(a, b, 64);
+    uint32_t from = a->pg.starts[a->page].pos;
+    uint32_t to = a->page + 1 < a->pg.n ? a->pg.starts[a->page + 1].pos : UINT32_MAX;
+    for (int i = 0; i < n && i < 64; i++)
+        if (b[i].spine == a->spine && b[i].pos >= from && b[i].pos < to)
+            return 1;
+    return 0;
+}
+
+/* "02 · Lettura Segnalibro": the folded corner at the top right, 32 x 32. */
+static void draw_bookmark_corner(App *a)
+{
+    canvas_fill(&a->cv, a->W - 32, 0, 32, 32, G_CARTA);
+    float tri[6] = { (float)a->W - 32, 0, (float)a->W - 32, 32, (float)a->W, 32 };
+    canvas_polygon(&a->cv, tri, 3, G_NERO);
+}
+
+/* A few words from byte pos of the chapter, on one line. */
+static void words_at(const Chapter *ch, uint32_t pos, char *out, size_t n)
+{
+    size_t j = 0;
+    uint32_t i = pos;
+    while (i < ch->len && j + 5 < n) {
+        out[j++] = ch->text[i++];
+    }
+    while (j > 0 && ((unsigned char)out[j - 1] & 0xC0) == 0x80) /* do not cut a letter */
+        j--;
+    if (j > 0 && ((unsigned char)out[j - 1] & 0x80))
+        j--;
+    out[j] = 0;
+    for (size_t k = 0; k < j; k++)
+        if (out[k] == '\t' || out[k] == '\n' || out[k] == '\r')
+            out[k] = ' ';
+}
+
+/* "Aggiungi segnalibro": adds a bookmark for the page on screen (or removes it if there is one). */
+static void bookmark_toggle(App *a)
+{
+    char path[700], tmp[720];
+    snprintf(path, sizeof path, "%s/segnalibri.tsv", a->data);
+    snprintf(tmp, sizeof tmp, "%s.nuovo", path);
+    uint32_t from = a->pg.starts[a->page].pos;
+    uint32_t to = a->page + 1 < a->pg.n ? a->pg.starts[a->page + 1].pos : UINT32_MAX;
+    FILE *in = fopen(path, "r"), *out = fopen(tmp, "w");
+    if (!out) {
+        if (in)
+            fclose(in);
+        return;
+    }
+    int removed = 0;
+    char line[2048];
+    size_t pl = strlen(a->entry->path);
+    while (in && fgets(line, sizeof line, in)) {
+        int sp;
+        unsigned pos;
+        if (strncmp(line, a->entry->path, pl) == 0 && line[pl] == '\t' &&
+            sscanf(line + pl + 1, "%d\t%u", &sp, &pos) == 2 && sp == a->spine && pos >= from && pos < to) {
+            removed = 1;
+            continue;
+        }
+        fputs(line, out);
+    }
+    if (in)
+        fclose(in);
+    if (!removed) {
+        char words[96];
+        words_at(a->ch, from, words, sizeof words);
+        int p, t;
+        book_pages(a, &p, &t);
+        fprintf(out, "%s\t%d\t%u\t%d\t%s\n", a->entry->path, a->spine, from, p, words);
+    }
+    fclose(out);
+    rename(tmp, path);
+    log_msg("bookmark %s: spine %d byte %u", removed ? "removed" : "added", a->spine, from);
+}
+
+/* "Segnalibri": the list, choosing one goes there. Returns 1 if the page changed. */
+static int bookmarks_run(App *a)
+{
+    Bookmark b[200];
+    int n = bookmarks_load(a, b, 200);
+    if (n > 200)
+        n = 200;
+    if (n == 0) {
+        message(a, "Nessun segnalibro", "Aggiungilo dal menu, sulla pagina che vuoi ritrovare.", REFRESH_PARTIAL);
+        input_wait(3000, NULL);
+        return 0;
+    }
+    ListItem *items = xcalloc(n, sizeof(ListItem));
+    char (*vals)[24] = xcalloc(n, 24);
+    for (int i = 0; i < n; i++) {
+        snprintf(vals[i], 24, "pag. %d", b[i].page);
+        items[i].label = b[i].words[0] ? b[i].words : "Segnalibro";
+        items[i].value = vals[i];
+    }
+    int r = list_run(a, a->book->title, "Segnalibri", items, n, 0, NULL);
+    int moved = 0;
+    if (r >= 0 && b[r].spine < a->book->nspine && load_chapter(a, b[r].spine, 1, b[r].pos) == 0) {
+        save_position(a);
+        moved = 1;
+    }
+    free(vals);
+    free(items);
+    return moved;
+}
+
+/* --------------------------------------------------------------- search */
+
+typedef struct {
+    int spine;
+    uint32_t pos;
+    int page;
+    char words[96];
+} Hit;
+
+/* Case-insensitive for ASCII letters; accented letters must match exactly. */
+static const char *find_ci(const char *hay, size_t hn, const char *needle, size_t nn, size_t from)
+{
+    for (size_t i = from; i + nn <= hn; i++) {
+        size_t j = 0;
+        while (j < nn) {
+            unsigned char x = (unsigned char)hay[i + j], y = (unsigned char)needle[j];
+            if (x >= 'A' && x <= 'Z')
+                x += 32;
+            if (y >= 'A' && y <= 'Z')
+                y += 32;
+            if (x != y)
+                break;
+            j++;
+        }
+        if (j == nn)
+            return hay + i;
+    }
+    return NULL;
+}
+
+/* "Cerca nel libro": the word from the keyboard, then the list of the places found. */
+static int search_run(App *a)
+{
+    static char query[64];
+    if (!keyboard_run(a, a->book->title, "Cerca nel libro", query, sizeof query) || !query[0])
+        return 0;
+    message(a, "Cerco nel libro…", query, REFRESH_PARTIAL);
+    int max = 100, n = 0;
+    Hit *hits = xcalloc(max, sizeof(Hit));
+    size_t qn = strlen(query);
+    double t0 = now_ms();
+    for (int s = 0; s < a->book->nspine && n < max; s++) {
+        Chapter *c = s == a->spine ? a->ch : book_chapter(a->book, s);
+        if (!c)
+            continue;
+        size_t from = 0;
+        const char *h;
+        while (n < max && (h = find_ci(c->text, c->len, query, qn, from))) {
+            uint32_t pos = (uint32_t)(h - c->text);
+            uint32_t st = pos > 30 ? pos - 30 : 0;
+            while (st > 0 && ((unsigned char)c->text[st] & 0xC0) == 0x80)
+                st--;
+            while (st > 0 && st < pos && c->text[st - 1] != ' ') /* start at a word */
+                st++;
+            hits[n].spine = s;
+            hits[n].pos = pos;
+            hits[n].page = page_of_pos(a, s, pos, c->len);
+            words_at(c, st, hits[n].words, sizeof hits[n].words);
+            n++;
+            from = pos + qn;
+        }
+        if (c != a->ch)
+            chapter_free(c);
+    }
+    log_msg("search \"%s\": %d results in %.0f ms", query, n, now_ms() - t0);
+    int moved = 0;
+    if (n == 0) {
+        message(a, "Nessun risultato", query, REFRESH_PARTIAL);
+        input_wait(3000, NULL);
+    } else {
+        ListItem *items = xcalloc(n, sizeof(ListItem));
+        char (*vals)[24] = xcalloc(n, 24);
+        for (int i = 0; i < n; i++) {
+            snprintf(vals[i], 24, "pag. %d", hits[i].page);
+            items[i].label = hits[i].words;
+            items[i].value = vals[i];
+        }
+        char title[96];
+        snprintf(title, sizeof title, "«%s»%s", query, n == max ? " (primi 100)" : "");
+        int r = list_run(a, a->book->title, title, items, n, 0, NULL);
+        if (r >= 0 && load_chapter(a, hits[r].spine, 1, hits[r].pos) == 0) {
+            save_position(a);
+            moved = 1;
+        }
+        free(vals);
+        free(items);
+    }
+    free(hits);
+    return moved;
+}
+
+/* "02 · Lettura Menù" (Pannello menu, Property 1=Libro): the panel opens over the page, which stays
+ * visible above it; texts, values and icons exactly as in Figma. Returns where to go after the menu,
+ * or -1 to keep reading. */
 static int reader_menu(App *a)
 {
     int sel = 0;
-    enum { M_TOC, M_SIZE, M_SETTINGS, M_CLEAN, M_LIB, M_KINDLE, M_N };
+    enum { M_MARK, M_SEARCH, M_SIZE, M_GOTO, M_MARKS, M_TOC, M_N };
     Row rows[M_N] = {
-        { "Indice", "", ICON_ARROW },
+        { "Aggiungi segnalibro", "", ICON_PLUS },
+        { "Cerca nel libro", "", ICON_ARROW },
         { "Dimensione carattere", "", ICON_NONE },
-        { "Impostazioni", "", ICON_ARROW },
-        { "Pulisci lo schermo", "", ICON_NONE },
-        { "Torna alla Home", "", ICON_ARROW },
-        { "Torna al Kindle", "", ICON_ARROW },
+        { "Vai a pagina…", "", ICON_ARROW },
+        { "Segnalibri", "", ICON_ARROW },
+        { "Indice", "", ICON_ARROW },
     };
     int redraw = 1;
     for (;;) {
@@ -836,9 +1309,15 @@ static int reader_menu(App *a)
             full(a, REFRESH_PARTIAL);
             redraw = 0;
         }
-        snprintf(rows[M_SIZE].value, sizeof rows[M_SIZE].value, "%d pt", a->lp.size);
         int p, t;
         book_pages(a, &p, &t);
+        snprintf(rows[M_SIZE].value, sizeof rows[M_SIZE].value, "%d pt", a->lp.size);
+        snprintf(rows[M_GOTO].value, sizeof rows[M_GOTO].value, "pag. %d di %d", p, t);
+        int nb = bookmarks_load(a, NULL, 0);
+        if (nb)
+            snprintf(rows[M_MARKS].value, sizeof rows[M_MARKS].value, "%d", nb);
+        else
+            rows[M_MARKS].value[0] = 0;
         char left[16], right[48];
         snprintf(left, sizeof left, "%d%%", percent_of(a));
         snprintf(right, sizeof right, "pagina %d di %d", p, t);
@@ -850,25 +1329,16 @@ static int reader_menu(App *a)
             sel = M_SIZE;
             redraw = 1;
             continue;
-        case M_TOC: show_toc(a); return -1;
         case M_SIZE: /* centre: next size, after the biggest back to the smallest */
             change_size(a, size_index(a->lp.size) == NSIZES - 1 ? -(NSIZES - 1) : 1);
             sel = M_SIZE;
             redraw = 1;
             continue;
-        case M_SETTINGS: {
-            int s = settings_run(a);
-            if (s == 2)
-                return GO_EXIT;
-            if (s == 1)
-                return GO_LIBRARY;
-            sel = M_SETTINGS;
-            redraw = 1;
-            continue;
-        }
-        case M_CLEAN: return -1;
-        case M_LIB: return GO_LIBRARY;
-        case M_KINDLE: return GO_EXIT;
+        case M_MARK: bookmark_toggle(a); return -1;
+        case M_SEARCH: search_run(a); return -1;
+        case M_GOTO: goto_page_run(a); return -1;
+        case M_MARKS: bookmarks_run(a); return -1;
+        case M_TOC: show_toc(a); return -1;
         case PANEL_END: return k == K_HOME ? GO_LIBRARY : GO_EXIT;
         default: return -1;
         }
@@ -1018,9 +1488,12 @@ static void pile_add(Cell *c, LibEntry *e)
 }
 
 /* Cells of a view: folder NULL and !read_view = Home; read_view = books already read; else that folder. */
+static int collections(App *a, char names[][128], int max);
+static int to_read_has(App *a, const char *path);
+
 static int build_cells(App *a, const char *folder, int read_view, Cell **out)
 {
-    Cell *cells = xcalloc(a->lib.n + 2, sizeof(Cell));
+    Cell *cells = xcalloc(a->lib.n + 2 + 64, sizeof(Cell)); /* + up to 64 empty collections */
     int n = 0;
     Cell read = { .kind = CELL_READ };
     snprintf(read.name, sizeof read.name, "Libri letti");
@@ -1057,6 +1530,21 @@ static int build_cells(App *a, const char *folder, int read_view, Cell **out)
             continue;
         }
         cells[n++] = (Cell){ .kind = CELL_BOOK, .e = e, .recent = recent_of(e) };
+    }
+    if (!folder && !read_view) { /* empty collections made with "Crea nuova raccolta" */
+        char (*names)[128] = xcalloc(64, 128);
+        int nc = collections(a, names, 64);
+        for (int c = 0; c < nc; c++) {
+            int j;
+            for (j = 0; j < n && !(cells[j].kind == CELL_FOLDER && strcmp(cells[j].name, names[c]) == 0); j++)
+                ;
+            if (j == n) {
+                cells[n] = (Cell){ .kind = CELL_FOLDER };
+                snprintf(cells[n].name, sizeof cells[n].name, "%s", names[c]);
+                n++;
+            }
+        }
+        free(names);
     }
     if (read.count)
         cells[n++] = read;
@@ -1132,8 +1620,11 @@ static void draw_cell(App *a, const Cell *c, float x, float y, int focus)
         for (int i = 2; i >= 0; i--) {
             const LibEntry *e = c->pile[i] ? c->pile[i] : c->pile[0];
             float px = x + 4.3f + off[i][0] + d, py = y + 4.3f + off[i][1] + d;
-            cover_draw(cv, px, py, 167.762f, 243.255f, e->title, e->author, book_style(e), 1);
-            canvas_frame(cv, (int)lrintf(px), (int)lrintf(py), 168, 243, 1, G_NERO);
+            if (e)
+                cover_draw(cv, px, py, 167.762f, 243.255f, e->title, e->author, book_style(e), 1);
+            else /* empty collection: blank sheets */
+                canvas_fill(cv, (int)lrintf(px), (int)lrintf(py), 168, 243, G_CARTA);
+            canvas_frame(cv, (int)lrintf(px), (int)lrintf(py), 168, 243, e ? 1 : 2, G_NERO);
         }
     }
     canvas_noclip(cv);
@@ -1149,7 +1640,11 @@ static void draw_cell(App *a, const Cell *c, float x, float y, int focus)
             snprintf(left, sizeof left, "%d%%", e->percent);
         else {
             badge = !g_sim && time(NULL) - e->mtime < 7 * 86400; /* arrived this week */
-            snprintf(left, sizeof left, badge ? "NUOVO" : "Nuovo");
+            if (to_read_has(a, e->path)) {
+                snprintf(left, sizeof left, "Da leggere");
+                badge = 0;
+            } else
+                snprintf(left, sizeof left, badge ? "NUOVO" : "Nuovo");
         }
         int p = pages_of(a, e);
         snprintf(right, sizeof right, p == 1 ? "%d pagina" : "%d pagine", p);
@@ -1184,16 +1679,251 @@ static void empty_home(App *a)
     full(a, REFRESH_FULL);
 }
 
-/* Home menu ("00 Home Menù"). Returns 1 to rescan, 2 to exit, 0 otherwise. */
+/* ------------------------------------------------- collections, to-read */
+
+#define COLL_MARK ".carbonella-raccolta" /* marks a folder made with "Crea nuova raccolta" */
+
+/* Names of the collections: sub-folders of the books folder that hold books, plus the empty ones
+ * created from the menu. Returns how many (at most max). */
+static int collections(App *a, char names[][128], int max)
+{
+    int n = 0;
+    for (int i = 0; i < a->lib.n; i++) {
+        char f[128];
+        folder_of(a, &a->lib.e[i], f, sizeof f);
+        if (!*f)
+            continue;
+        int j;
+        for (j = 0; j < n && strcmp(names[j], f) != 0; j++)
+            ;
+        if (j == n && n < max)
+            snprintf(names[n++], 128, "%s", f);
+    }
+    DIR *d = opendir(a->books);
+    struct dirent *de;
+    while (d && (de = readdir(d)) && n < max) {
+        if (de->d_name[0] == '.')
+            continue;
+        char mark[1024];
+        snprintf(mark, sizeof mark, "%s/%s/" COLL_MARK, a->books, de->d_name);
+        if (access(mark, F_OK) != 0)
+            continue;
+        int j;
+        for (j = 0; j < n && strcmp(names[j], de->d_name) != 0; j++)
+            ;
+        if (j == n)
+            snprintf(names[n++], 128, "%.127s", de->d_name);
+    }
+    if (d)
+        closedir(d);
+    return n;
+}
+
+/* Trims spaces and refuses names that cannot be a folder. */
+static int clean_name(char *s)
+{
+    size_t l = strlen(s);
+    while (l && s[l - 1] == ' ')
+        s[--l] = 0;
+    size_t st = strspn(s, " ");
+    memmove(s, s + st, l - st + 1);
+    return s[0] && s[0] != '.' && !strchr(s, '/');
+}
+
+/* "Crea nuova raccolta": the name from the keyboard, then a new folder. Returns 1 if created;
+ * the name goes in out (if not NULL). */
+static int create_collection(App *a, char *out, size_t n)
+{
+    char name[64] = "";
+    if (!keyboard_run(a, a->name, "Crea nuova raccolta", name, sizeof name))
+        return 0;
+    if (!clean_name(name)) {
+        message(a, "Nome non valido", "Scrivi almeno una lettera.", REFRESH_PARTIAL);
+        input_wait(3000, NULL);
+        return 0;
+    }
+    char dir[1024], mark[1100];
+    snprintf(dir, sizeof dir, "%s/%s", a->books, name);
+    snprintf(mark, sizeof mark, "%s/" COLL_MARK, dir);
+    if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
+        message(a, "Non riesco a creare la raccolta", strerror(errno), REFRESH_PARTIAL);
+        input_wait(4000, NULL);
+        return 0;
+    }
+    FILE *f = fopen(mark, "w");
+    if (f)
+        fclose(f);
+    log_msg("collection created: %s", name);
+    if (out)
+        snprintf(out, n, "%s", name);
+    message(a, "Raccolta creata", name, REFRESH_PARTIAL);
+    input_wait(1500, NULL);
+    return 1;
+}
+
+static int cmp_entry_title(const void *x, const void *y)
+{
+    const LibEntry *a = *(LibEntry *const *)x, *b = *(LibEntry *const *)y;
+    return strcasecmp(a->title ? a->title : "", b->title ? b->title : "");
+}
+
+/* "Sposta libri": choose a book, then the collection (or none). Returns 1 if a book moved. */
+static int move_books(App *a)
+{
+    if (a->lib.n == 0)
+        return 0;
+    LibEntry **books = xcalloc(a->lib.n, sizeof(LibEntry *));
+    ListItem *items = xcalloc(a->lib.n, sizeof(ListItem));
+    char (*where)[128] = xcalloc(a->lib.n, 128);
+    for (int i = 0; i < a->lib.n; i++)
+        books[i] = &a->lib.e[i];
+    qsort(books, a->lib.n, sizeof(LibEntry *), cmp_entry_title);
+    for (int i = 0; i < a->lib.n; i++) {
+        folder_of(a, books[i], where[i], 128);
+        items[i].label = books[i]->title;
+        items[i].value = where[i];
+    }
+    int moved = 0;
+    int r = list_run(a, a->name, "Sposta libri", items, a->lib.n, 0, NULL);
+    if (r >= 0) {
+        LibEntry *e = books[r];
+        char (*names)[128] = xcalloc(64, 128);
+        int nc = collections(a, names, 64);
+        ListItem *dest = xcalloc(nc + 2, sizeof(ListItem));
+        dest[0].label = "Nessuna raccolta";
+        for (int i = 0; i < nc; i++)
+            dest[i + 1].label = names[i];
+        dest[nc + 1].label = "Crea nuova raccolta";
+        char title[160];
+        snprintf(title, sizeof title, "Sposta «%s»", e->title);
+        int d = list_run(a, a->name, title, dest, nc + 2, 0, NULL);
+        char target[128] = "";
+        int ok = d >= 0;
+        if (d == nc + 1)
+            ok = create_collection(a, target, sizeof target);
+        else if (d > 0)
+            snprintf(target, sizeof target, "%s", names[d - 1]);
+        if (ok) {
+            const char *base = strrchr(e->path, '/');
+            base = base ? base + 1 : e->path;
+            char np[1024];
+            if (*target)
+                snprintf(np, sizeof np, "%s/%s/%s", a->books, target, base);
+            else
+                snprintf(np, sizeof np, "%s/%s", a->books, base);
+            if (strcmp(np, e->path) == 0)
+                ;
+            else if (access(np, F_OK) == 0) {
+                message(a, "C'è già un file con questo nome", base, REFRESH_PARTIAL);
+                input_wait(4000, NULL);
+            } else if (rename(e->path, np) != 0) {
+                message(a, "Non riesco a spostare il libro", strerror(errno), REFRESH_PARTIAL);
+                input_wait(4000, NULL);
+            } else {
+                log_msg("moved %s -> %s", e->path, np);
+                free(e->path);
+                e->path = xstrdup(np);
+                library_save_positions(&a->lib, a->data); /* the reading position follows the book */
+                moved = 1;
+            }
+        }
+        free(dest);
+        free(names);
+    }
+    free(where);
+    free(items);
+    free(books);
+    return moved;
+}
+
+/* Books to read ("Aggiungi libro da leggere"): dati/da_leggere.tsv, one path per line. */
+static int to_read_has(App *a, const char *path)
+{
+    char p[700], line[1100];
+    snprintf(p, sizeof p, "%s/da_leggere.tsv", a->data);
+    FILE *f = fopen(p, "r");
+    int found = 0;
+    while (f && !found && fgets(line, sizeof line, f)) {
+        line[strcspn(line, "\r\n")] = 0;
+        found = strcmp(line, path) == 0;
+    }
+    if (f)
+        fclose(f);
+    return found;
+}
+
+static void to_read_toggle(App *a, const char *path)
+{
+    char p[700], tmp[720], line[1100];
+    snprintf(p, sizeof p, "%s/da_leggere.tsv", a->data);
+    snprintf(tmp, sizeof tmp, "%s.nuovo", p);
+    int had = to_read_has(a, path);
+    FILE *in = fopen(p, "r"), *out = fopen(tmp, "w");
+    if (!out) {
+        if (in)
+            fclose(in);
+        return;
+    }
+    while (in && fgets(line, sizeof line, in)) {
+        line[strcspn(line, "\r\n")] = 0;
+        if (*line && strcmp(line, path) != 0)
+            fprintf(out, "%s\n", line);
+    }
+    if (in)
+        fclose(in);
+    if (!had)
+        fprintf(out, "%s\n", path);
+    fclose(out);
+    rename(tmp, p);
+}
+
+/* "Aggiungi libro da leggere": the books not started yet; choosing one marks it "Da leggere"
+ * (choosing it again removes the mark). Returns 1 if something changed. */
+static int add_to_read(App *a)
+{
+    LibEntry **books = xcalloc(a->lib.n + 1, sizeof(LibEntry *));
+    int n = 0;
+    for (int i = 0; i < a->lib.n; i++)
+        if (a->lib.e[i].percent < 0)
+            books[n++] = &a->lib.e[i];
+    if (n == 0) {
+        free(books);
+        message(a, "Nessun libro da iniziare", "Tutti i libri sono già iniziati.", REFRESH_PARTIAL);
+        input_wait(3000, NULL);
+        return 0;
+    }
+    qsort(books, n, sizeof(LibEntry *), cmp_entry_title);
+    ListItem *items = xcalloc(n, sizeof(ListItem));
+    int changed = 0, sel = 0;
+    for (;;) {
+        for (int i = 0; i < n; i++) {
+            items[i].label = books[i]->title;
+            items[i].value = to_read_has(a, books[i]->path) ? "Da leggere" : "";
+        }
+        int r = list_run(a, a->name, "Aggiungi libro da leggere", items, n, sel, NULL);
+        if (r < 0)
+            break;
+        to_read_toggle(a, books[r]->path);
+        changed = 1;
+        sel = r;
+    }
+    free(items);
+    free(books);
+    return changed;
+}
+
+/* Home menu ("00 Home Menù", Pannello menu Property 1=Home): texts, values and icons exactly as in
+ * Figma. Returns 1 to read the library again, 2 to exit, 0 otherwise. */
 static int home_menu(App *a)
 {
-    enum { H_SORT, H_GOAL, H_SETTINGS, H_RESCAN, H_KINDLE, H_N };
+    enum { H_SORT, H_GOAL, H_NEWCOLL, H_MOVE, H_TOREAD, H_SETTINGS, H_N };
     Row rows[H_N] = {
         { "Ordina per", "", ICON_ARROW },
-        { "Obiettivo giornaliero", "", ICON_ARROW },
-        { "Impostazioni", "", ICON_ARROW },
-        { "Aggiorna l'elenco dei libri", "", ICON_PLUS },
-        { "Torna al Kindle", "", ICON_ARROW },
+        { "Obbiettivo giornaliero", "", ICON_ARROW },
+        { "Crea nuova raccolta", "", ICON_PLUS },
+        { "Sposta libri", "", ICON_ARROW },
+        { "Aggiungi libro da leggere", "", ICON_PLUS },
+        { "Impostazioni", "", ICON_PLUS },
     };
     char ver[48];
     snprintf(ver, sizeof ver, "Carbonella %s", CARBONELLA_VERSION);
@@ -1218,12 +1948,10 @@ static int home_menu(App *a)
             save_prefs(a);
             continue;
         }
-        case H_SETTINGS: {
-            int r2 = settings_run(a);
-            return r2; /* 0: the Home is drawn again (order and goal may have changed) */
-        }
-        case H_RESCAN: return 1;
-        case H_KINDLE: return 2;
+        case H_NEWCOLL: return create_collection(a, NULL, 0) ? 1 : 0;
+        case H_MOVE: return move_books(a) ? 1 : 0;
+        case H_TOREAD: add_to_read(a); return 0;
+        case H_SETTINGS: return settings_run(a) == 2 ? 2 : 0;
         case PANEL_END: return k == K_HOME ? 0 : 2;
         default: return 0;
         }

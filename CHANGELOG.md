@@ -2,6 +2,31 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Finché siamo a `0.x` tutto può cambiare.
 
+## v0.4.0 · 2026-11-17 · "I menu di Figma"
+
+Simone: *"perché se in Figma il menù ha delle scritte tu le devi cambiare"*. Da ora i testi e l'ordine
+delle voci sono esattamente quelli dei frame Figma, parola per parola.
+
+- **Menu della Home** (come "00 Home Menù"): Ordina per, Obbiettivo giornaliero, Crea nuova raccolta,
+  Sposta libri, Aggiungi libro da leggere, Impostazioni.
+  - *Crea nuova raccolta*: il nome si scrive con la tastiera sullo schermo; la raccolta compare nella
+    Home anche vuota.
+  - *Sposta libri*: scegli il libro, poi la raccolta (o "Nessuna raccolta", o una nuova). La posizione
+    di lettura segue il libro.
+  - *Aggiungi libro da leggere*: tra i libri non ancora iniziati, segna quelli da leggere; nella Home
+    sotto la copertina compare "Da leggere".
+- **Menu di lettura** (come "02 · Lettura Menù"): Aggiungi segnalibro, Cerca nel libro, Dimensione
+  carattere, Vai a pagina… (con "pag. 12 di 684"), Segnalibri (con il numero), Indice.
+  - *Segnalibro*: l'angolo piegato in alto a destra, come in "02 · Lettura Segnalibro". Sulla stessa
+    pagina, "Aggiungi segnalibro" lo toglie.
+  - *Cerca nel libro*: tastiera sullo schermo, poi l'elenco dei punti trovati con la pagina.
+  - *Vai a pagina…*: il numero si cambia con le frecce (1 o 10 pagine) e con i tasti laterali (100).
+- **Tastiera sullo schermo** per il 5-way: lettere, accentate, punteggiatura, Spazio, Cancella, Fatto.
+- **Impostazioni**: testi come nei frame (anche "Obbiettivo giornaliero", "Torna al kindle"); tolte le
+  voci che avevo aggiunto io (Prova dei tasti, Aggiorna l'elenco dei libri).
+- Tolte dai menu le voci che non sono in Figma: Pulisci lo schermo, Torna alla Home e Torna al Kindle
+  (restano il tasto Home e "Torna al kindle" nelle Impostazioni).
+
 ## v0.3.1 · 2026-11-17
 
 - **La Home compare subito**: con alcune copertine (lo stile "Zigzag") il primo disegno della Home

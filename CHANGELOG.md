@@ -2,6 +2,26 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Finché siamo a `0.x` tutto può cambiare.
 
+## v0.2.0 · 2026-11-17 · "Come in Figma"
+
+Tutte le schermate rifatte dal design Figma, con le stesse misure, gli stessi font e gli stessi grigi.
+
+- **Home a copertine**: 3 colonne con la terza riga tagliata a metà, si scorre per righe. Ogni libro ha
+  una copertina generata (23 stili del design, sempre la stessa per lo stesso libro), con percentuale e pagine.
+- **Raccolte**: i libri finiti stanno nella pila "Libri letti"; ogni sottocartella di `documents`
+  diventa una pila con il suo nome.
+- **Intestazione**: nome del Kindle (`nome` nelle impostazioni), minuti letti oggi rispetto
+  all'obiettivo, ora e batteria.
+- **Menu a pannello** dal basso, nella Home (ordine, obiettivo giornaliero, aggiorna, torna al Kindle)
+  e nella lettura (indice, dimensione carattere con ‹ ›, pulizia schermo, Home, Kindle).
+- **Pagina di lettura** come nel design: margini 48, interlinea 1,5, in basso "12 di 684" e la barra
+  di avanzamento del libro.
+- **Standby**: quando il Kindle va in standby, la copertina del libro a schermo intero; al risveglio
+  si torna alla stessa pagina.
+- Font nuovi: IBM Plex Mono, IBM Plex Sans Medium, Literata SemiBold (SIL OFL).
+- `make prova` usa una libreria finta con i libri del design, per confrontare le schermate con Figma;
+  `carbonella --copertine` mostra i 23 stili.
+
 ## v0.1.1 · 2026-11-16
 
 Correzioni per il primo avvio sul Kindle vero (da KUAL Carbonella non si apriva).

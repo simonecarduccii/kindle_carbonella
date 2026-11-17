@@ -2456,14 +2456,15 @@ static void mark_finished(App *a, LibEntry *e)
 static int home_menu(App *a, LibEntry *focus, const char *folder)
 {
     int in_archive = folder && strcmp(folder, ARCHIVE_NAME) == 0;
-    enum { H_NEWCOLL, H_SORT, H_GOAL, H_ADDCOLL, H_FINISHED, H_ARCHIVE, H_SETTINGS, H_N };
+    /* order from Figma "Pannello menu > Home" (Simone, 2026-11-17 v1.0.6) */
+    enum { H_NEWCOLL, H_ADDCOLL, H_FINISHED, H_ARCHIVE, H_GOAL, H_SORT, H_SETTINGS, H_N };
     Row rows[H_N] = {
         { "Crea nuova raccolta", "", ICON_PLUS },
-        { "Ordina per", "", ICON_NONE },
-        { "Obbiettivo giornaliero", "", ICON_NONE },
         { "Aggiungi alla raccolta", "", ICON_ARROW },
         { "Salva come finito", "", ICON_ARROW },
         { "Archivia libro", "", ICON_ARROW },
+        { "Obbiettivo giornaliero", "", ICON_NONE },
+        { "Ordina per", "", ICON_NONE },
         { "Tutte le impostazioni", "", ICON_ARROW },
     };
     if (in_archive) /* Simone: in the archive "Archivia libro" becomes "Togli dall'archivio" */

@@ -2,6 +2,12 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Dalla 1.0.0 le versioni MINORE aggiungono cose, le CORREZIONE sistemano.
 
+## v1.0.6 · 2026-11-17
+
+- **Menu della Home nel nuovo ordine** di Simone (Figma, Pannello menu > Home): Crea nuova raccolta,
+  Aggiungi alla raccolta, Salva come finito, Archivia libro, Obbiettivo giornaliero, Ordina per, Tutte
+  le impostazioni.
+
 ## v1.0.5 · 2026-11-17
 
 - **Mostra sottolineature** (Impostazioni, pagina 2, prima voce di ARCHIVIO): apre "I miei ritagli",

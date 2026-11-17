@@ -232,7 +232,9 @@ void book_close(Book *b);
 /* Reads only title/author (fast path for the library). Returns 0 on success. */
 /* Reads title, author and publisher (dc:publisher, "" if missing) without opening the chapters. */
 void book_clean_title(char *t); /* drops trailing "(…)" notes: edition, publisher, language */
-int book_peek_meta(const char *path, char **title, char **author, char **publisher, long long *text_bytes);
+/* print_pages: pages of the paper edition from the EPUB page list, 0 if the book has none. */
+int book_peek_meta(const char *path, char **title, char **author, char **publisher, long long *text_bytes,
+                   int *print_pages);
 /* Loads and parses one spine item. Returns NULL on error. */
 Chapter *book_chapter(Book *b, int spine);
 void chapter_free(Chapter *c);
@@ -281,6 +283,11 @@ typedef struct {
     long long last_read;
     long long text_bytes; /* size of the text (uncompressed XHTML), to estimate pages */
     int pages;            /* estimated pages, 0 = unknown */
+    /* Pages of the printed (paper) edition, for the Home. 0 = unknown. From pagine_carta.tsv (checked
+     * by hand on catalogues) or else from the EPUB's own page list. Never the on-screen pages. */
+    int print_pages;
+    int print_pages_epub;  /* the EPUB page list alone (cached in libreria.tsv) */
+    char *print_edition;   /* "Einaudi 2011, ISBN …" from pagine_carta.tsv, "" if unknown */
 } LibEntry;
 
 typedef struct {
@@ -288,7 +295,8 @@ typedef struct {
     int n, cap;
 } Library;
 
-void library_scan(Library *lib, const char *books_dir, const char *data_dir);
+/* base_dir: where carbonella.conf and the shipped pagine_carta.tsv are (dati/pagine_carta.tsv wins). */
+void library_scan(Library *lib, const char *books_dir, const char *data_dir, const char *base_dir);
 void library_free(Library *lib);
 void library_save_positions(const Library *lib, const char *data_dir);
 LibEntry *library_find(Library *lib, const char *path);

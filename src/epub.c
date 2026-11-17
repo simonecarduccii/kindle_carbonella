@@ -543,10 +543,59 @@ static int ends_with(const char *s, const char *suffix)
     return a >= b && strcasecmp(s + a - b, suffix) == 0;
 }
 
-int book_peek_meta(const char *path, char **title, char **author, char **publisher, long long *text_bytes)
+/* v1.1: pages of the printed edition, from the EPUB's own page list (EPUB 3 nav "page-list" or the
+ * NCX <pageList>), which publishers fill with the page breaks of the paper book. Returns the highest
+ * arabic page number, or the number of entries if none is numeric; 0 if the book has no page list. */
+static int page_list_pages(const char *data, size_t len, int is_nav)
+{
+    Xml x = { data, data + len };
+    XmlTok t;
+    int in_list = 0, depth = 0, count = 0, maxnum = 0;
+    while (xml_next(&x, &t) != XT_END) {
+        if (is_nav) {
+            if (t.type == XT_OPEN && name_is(&t, "nav") && !t.self_close) {
+                char type[64] = "";
+                xml_attr(&t, "type", type, sizeof type);
+                depth++;
+                if (strstr(type, "page-list"))
+                    in_list = depth;
+            } else if (t.type == XT_CLOSE && name_is(&t, "nav")) {
+                if (in_list == depth)
+                    in_list = 0;
+                depth--;
+            } else if (in_list && t.type == XT_OPEN && name_is(&t, "a") && !t.self_close) {
+                char *label = element_text(&x, "a");
+                int v = label ? atoi(label) : 0;
+                count++;
+                if (v > maxnum && v < 20000)
+                    maxnum = v;
+                free(label);
+            }
+        } else {
+            if (t.type == XT_OPEN && name_is(&t, "pageList"))
+                in_list = 1;
+            else if (t.type == XT_CLOSE && name_is(&t, "pageList"))
+                in_list = 0;
+            else if (in_list && t.type == XT_OPEN && name_is(&t, "pageTarget")) {
+                char type[32] = "", value[32] = "";
+                xml_attr(&t, "type", type, sizeof type);
+                xml_attr(&t, "value", value, sizeof value);
+                int v = atoi(value);
+                count++;
+                if ((!type[0] || !strcasecmp(type, "normal")) && v > maxnum && v < 20000)
+                    maxnum = v;
+            }
+        }
+    }
+    return maxnum > 0 ? maxnum : count;
+}
+
+int book_peek_meta(const char *path, char **title, char **author, char **publisher, long long *text_bytes,
+                   int *print_pages)
 {
     *title = *author = *publisher = NULL;
     *text_bytes = 0;
+    *print_pages = 0;
     if (ends_with(path, ".txt")) {
         *title = base_name(path);
         *author = xstrdup("");
@@ -566,10 +615,24 @@ int book_peek_meta(const char *path, char **title, char **author, char **publish
     char *data = opf ? zip_read(&z, opf, &len) : NULL;
     if (data) {
         Opf o;
-        parse_opf(data, len, &o, 1);
+        parse_opf(data, len, &o, 0); /* the manifest too: it names the nav / NCX with the page list */
         *title = o.title && *o.title ? xstrdup(o.title) : base_name(path);
         *author = xstrdup(o.author ? o.author : "");
         *publisher = xstrdup(o.publisher ? o.publisher : "");
+        char *odir = dir_of(opf);
+        for (int i = 0; i < o.nitems && !*print_pages; i++) {
+            int is_nav = strstr(o.items[i].props, "nav") != NULL;
+            if (!is_nav && strcmp(o.items[i].type, "application/x-dtbncx+xml") != 0)
+                continue;
+            char *p = resolve(odir, o.items[i].href);
+            size_t nl;
+            char *d = zip_read(&z, p, &nl);
+            if (d)
+                *print_pages = page_list_pages(d, nl, is_nav);
+            free(d);
+            free(p);
+        }
+        free(odir);
         opf_free(&o);
         rc = 0;
     }

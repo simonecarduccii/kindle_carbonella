@@ -3003,7 +3003,7 @@ int main(int argc, char **argv)
         key_test(a);
     } else {
         Next next = GO_LIBRARY;
-        library_scan(&a->lib, a->books, a->data);
+        library_scan(&a->lib, a->books, a->data, a->base);
         if ((ultimo || settings_int(&a->cfg, "apri_ultimo", 0)) && a->lib.n > 0 && a->lib.e[0].percent >= 0 &&
             a->lib.e[0].percent < 100) {
             g_selected = &a->lib.e[0];
@@ -3015,7 +3015,7 @@ int main(int argc, char **argv)
                 LibEntry *focus = focus_path[0] ? library_find(&a->lib, focus_path) : NULL;
                 int r = grid_view(a, NULL, 0, focus);
                 if (r == GO_LIBRARY) { /* "Aggiorna" from the menu */
-                    library_scan(&a->lib, a->books, a->data);
+                    library_scan(&a->lib, a->books, a->data, a->base);
                     focus_path[0] = 0;
                 }
                 next = r < 0 ? GO_LIBRARY : (Next)r;
@@ -3025,7 +3025,7 @@ int main(int argc, char **argv)
                 next = run_reader(a);
                 a->entry = NULL;
                 if (next == GO_LIBRARY)
-                    library_scan(&a->lib, a->books, a->data); /* order by last read */
+                    library_scan(&a->lib, a->books, a->data, a->base); /* order by last read */
             } else
                 next = GO_LIBRARY;
         }

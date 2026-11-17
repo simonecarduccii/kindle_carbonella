@@ -47,7 +47,7 @@ sim: build/carbonella-sim
 PROVA_TASTI ?= R,M,D,D,D,D,R,D,R,B,M,S,D,D,R,S,D,D,R,R,S,W,R,M,D,S,S,R,M,D,D,S,W,R,M,D,D,D,S,W,M,D,D,D,D,D,D,S,S,L,L,L,L,D,R,B,D,D,R,N,B,S,M,S,M,D,D,D,S,U,R,S,M,D,D,D,D,S,S,M,D,S,D,R,R,R,R,R,S,U,L,L,L,S,D,D,D,D,R,R,S,S,M,D,D,R,B,Z,A,B
 prova: build/carbonella-sim build/libri/prova.epub
 	rm -rf build/schermate build/base build/libreria && mkdir -p build/base/dati
-	cp -r pacchetto/carbonella/fonts pacchetto/carbonella/carbonella.conf build/base/
+	cp -r pacchetto/carbonella/fonts pacchetto/carbonella/carbonella.conf pacchetto/carbonella/pagine_carta.tsv build/base/
 	echo "nome = Kindle di Simone" > build/base/dati/preferenze.conf
 	python3 strumenti/crea-libreria-prova.py build/libri/prova.epub "$(CURDIR)/build/libreria" build/base/dati
 	./build/carbonella-sim --base build/base --libri "$(CURDIR)/build/libreria" --sim build/schermate --keys "$(PROVA_TASTI)"

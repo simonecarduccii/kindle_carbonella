@@ -39,7 +39,7 @@ const char *key_name(Key k)
 {
     static const char *names[] = { "nessuno", "su", "giu", "sinistra", "destra", "centro",
                                    "avanti", "indietro", "Home", "Menu", "Back", "Tastiera",
-                                   "timeout", "fine" };
+                                   "timeout", "standby", "risveglio", "fine" };
     return k <= K_QUIT ? names[k] : "?";
 }
 
@@ -121,6 +121,8 @@ static Key script_next(int *raw)
     case 'B': return K_BACK;
     case 'K': return K_KEYBOARD;
     case 'W': return K_TIMEOUT;
+    case 'Z': return K_SLEEP;
+    case 'A': return K_WAKE;
     default: return K_NONE;
     }
 }
@@ -138,6 +140,11 @@ Key input_wait(int timeout_ms, int *raw_code)
     for (;;) {
         if (g_quit)
             return K_QUIT;
+        if (g_power == 1 || g_power == 2) {
+            Key k = g_power == 1 ? K_SLEEP : K_WAKE;
+            g_power = 0;
+            return k;
+        }
         struct pollfd p[MAX_DEV];
         for (int i = 0; i < nfds; i++)
             p[i] = (struct pollfd){ .fd = fds[i], .events = POLLIN };
@@ -149,7 +156,7 @@ Key input_wait(int timeout_ms, int *raw_code)
         }
         int r = poll(p, nfds, wait);
         if (r < 0) {
-            if (errno == EINTR && !g_quit)
+            if (errno == EINTR && !g_quit) /* a signal: maybe g_power */
                 continue;
             return K_QUIT;
         }

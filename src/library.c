@@ -4,8 +4,8 @@
  * Books: every .epub and .txt under the books folder (default /mnt/us/documents, the folder you see
  * when the Kindle is plugged into a computer), up to 3 sub-folders deep.
  * Data (in /mnt/us/carbonella/dati, plain text so they can be read and backed up):
- *   libreria.tsv   title/author cache, so we do not reopen every EPUB at each start
- *   posizioni.tsv  last position and percentage of every book
+ *   libreria.tsv   title/author/text size cache, so we do not reopen every EPUB at each start
+ *   posizioni.tsv  last position, percentage and estimated pages of every book
  *   letture.tsv    reading sessions (start, end, pages): the base for the "Obiettivi" screen
  */
 #include "carbonella.h"
@@ -113,13 +113,14 @@ void library_scan(Library *lib, const char *books_dir, const char *data_dir)
     if (cache) {
         char *save = NULL;
         for (char *line = strtok_r(cache, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
-            char *f[5];
-            if (split_tsv(line, f, 5) < 5)
+            char *f[6];
+            if (split_tsv(line, f, 6) < 6) /* v0.1 lines had no text size: read the book again */
                 continue;
             LibEntry *e = library_find(lib, f[0]);
             if (e && !e->title && atoll(f[1]) == e->size && atoll(f[2]) == e->mtime) {
                 e->title = xstrdup(f[3]);
                 e->author = xstrdup(f[4]);
+                e->text_bytes = atoll(f[5]);
                 from_cache++;
             }
         }
@@ -129,7 +130,7 @@ void library_scan(Library *lib, const char *books_dir, const char *data_dir)
         LibEntry *e = &lib->e[i];
         if (e->title)
             continue;
-        if (book_peek_meta(e->path, &e->title, &e->author) != 0) {
+        if (book_peek_meta(e->path, &e->title, &e->author, &e->text_bytes) != 0) {
             const char *s = strrchr(e->path, '/');
             e->title = xstrdup(s ? s + 1 : e->path);
             e->author = xstrdup("(file non leggibile)");
@@ -148,8 +149,8 @@ void library_scan(Library *lib, const char *books_dir, const char *data_dir)
                 cap = (n + need) * 2;
                 buf = xrealloc(buf, cap);
             }
-            n += snprintf(buf + n, cap - n, "%s\t%lld\t%lld\t%s\t%s\n", e->path, e->size, e->mtime, e->title,
-                          e->author);
+            n += snprintf(buf + n, cap - n, "%s\t%lld\t%lld\t%s\t%s\t%lld\n", e->path, e->size, e->mtime, e->title,
+                          e->author, e->text_bytes);
         }
         write_file_atomic(path, buf, n);
         free(buf);
@@ -161,12 +162,15 @@ void library_scan(Library *lib, const char *books_dir, const char *data_dir)
     if (pos) {
         char *save = NULL;
         for (char *line = strtok_r(pos, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
-            char *f[5];
-            if (split_tsv(line, f, 5) < 5)
+            char *f[6];
+            int nf = split_tsv(line, f, 6);
+            if (nf < 5)
                 continue;
             LibEntry *e = library_find(lib, f[0]);
             if (!e)
                 continue;
+            if (nf >= 6)
+                e->pages = atoi(f[5]);
             e->spine = atoi(f[1]);
             e->pos = (uint32_t)strtoul(f[2], NULL, 10);
             e->percent = atoi(f[3]);
@@ -191,8 +195,8 @@ void library_save_positions(const Library *lib, const char *data_dir)
             cap = (n + need) * 2;
             buf = xrealloc(buf, cap);
         }
-        n += snprintf(buf + n, cap - n, "%s\t%d\t%u\t%d\t%lld\n", e->path, e->spine, e->pos, e->percent,
-                      e->last_read);
+        n += snprintf(buf + n, cap - n, "%s\t%d\t%u\t%d\t%lld\t%d\n", e->path, e->spine, e->pos, e->percent,
+                      e->last_read, e->pages);
     }
     char path[1024];
     snprintf(path, sizeof path, "%s/posizioni.tsv", data_dir);

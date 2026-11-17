@@ -2,8 +2,9 @@
 # Carbonella - avvio sul Kindle 4.
 #
 # 1. ferma l'interfaccia Amazon (il "framework"), altrimenti disegnerebbe sopra di noi;
-# 2. impedisce lo screensaver mentre leggiamo (Carbonella ha un suo timer di inattività);
-# 3. avvia il lettore;
+# 2. impedisce lo screensaver automatico mentre leggiamo (Carbonella ha un suo timer di inattività);
+# 3. avvia il lettore e gli inoltra gli eventi di standby del Kindle (tasto di accensione):
+#    SIGUSR1 = va in standby (Carbonella mostra la copertina del libro), SIGUSR2 = si risveglia;
 # 4. quando il lettore finisce, in QUALSIASI modo (uscita normale, errore, crash),
 #    rimette tutto come prima e fa ripartire l'interfaccia Amazon.
 #
@@ -25,6 +26,8 @@ trap '' HUP TERM INT
 
 restore() {
     say "ripristino"
+    [ -n "$WATCHER" ] && kill "$WATCHER" 2>/dev/null
+    killall lipc-wait-event 2>/dev/null
     lipc-set-prop com.lab126.powerd preventScreenSaver 0 2>/dev/null
     if [ -n "$FRAMEWORK_STOPPED" ]; then
         say "riavvio il framework"
@@ -58,5 +61,23 @@ FRAMEWORK_STOPPED=1
 sleep 2
 
 say "avvio il lettore"
-"$BASE/bin/carbonella" --base "$BASE" "$@"
+"$BASE/bin/carbonella" --base "$BASE" "$@" &
+READER=$!
+
+# Standby: powerd (il servizio del Kindle che gestisce il tasto di accensione) annuncia quando il
+# Kindle va in standby e quando si risveglia; noi lo diciamo al lettore.
+if which lipc-wait-event >/dev/null 2>&1; then
+    ( lipc-wait-event -m com.lab126.powerd goingToScreenSaver,outOfScreenSaver | while read EV RESTO; do
+        say "powerd: $EV"
+        case "$EV" in
+            goingToScreenSaver) kill -USR1 "$READER" 2>/dev/null ;;
+            outOfScreenSaver) kill -USR2 "$READER" 2>/dev/null ;;
+        esac
+    done ) &
+    WATCHER=$!
+else
+    say "lipc-wait-event non c'è: niente copertina in standby"
+fi
+
+wait "$READER"
 say "il lettore è uscito con codice $?"

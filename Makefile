@@ -18,7 +18,7 @@ ZIG ?= zig
 TARGET ?= arm-linux-musleabi
 CC_HOST ?= cc
 
-SRC := src/app.c src/canvas.c src/display.c src/epub.c src/font.c src/input.c src/layout.c src/library.c src/util.c
+SRC := src/app.c src/canvas.c src/display.c src/epub.c src/font.c src/input.c src/layout.c src/library.c src/ui.c src/util.c
 HDR := src/carbonella.h
 MINIZ := third_party/miniz/miniz.c
 DEFS := -D_GNU_SOURCE -DMINIZ_NO_DEFLATE_APIS -DMINIZ_NO_ZLIB_APIS -DMINIZ_NO_TIME
@@ -41,13 +41,18 @@ build/carbonella-sim: $(SRC) $(HDR) $(MINIZ)
 
 sim: build/carbonella-sim
 
-# A quick tour: library, open the book, turn pages, menu, bigger text, index, back.
-PROVA_TASTI ?= S,N,N,N,N,N,N,P,M,D,S,B,M,S,D,D,S,B,H,D,S
+# A quick tour with the books of the Figma Home: move in the grid, Home menu, open a book, turn pages,
+# reader menu, bigger text, index, standby and wake up, back to the Home.
+PROVA_TASTI ?= R,D,D,M,D,B,U,U,L,S,N,N,M,D,R,B,M,S,D,S,B,Z,A,B
 prova: build/carbonella-sim build/libri/prova.epub
-	rm -rf build/schermate build/base && mkdir -p build/base
+	rm -rf build/schermate build/base build/libreria && mkdir -p build/base/dati
 	cp -r pacchetto/carbonella/fonts pacchetto/carbonella/carbonella.conf build/base/
-	./build/carbonella-sim --base build/base --libri build/libri --sim build/schermate --keys "$(PROVA_TASTI)"
+	echo "nome = Kindle di Simone" > build/base/dati/preferenze.conf
+	python3 strumenti/crea-libreria-prova.py build/libri/prova.epub "$(CURDIR)/build/libreria" build/base/dati
+	./build/carbonella-sim --base build/base --libri "$(CURDIR)/build/libreria" --sim build/schermate --keys "$(PROVA_TASTI)"
+	./build/carbonella-sim --base build/base --sim build/schermate/copertine --copertine
 	python3 strumenti/pgm2png.py build/schermate
+	python3 strumenti/pgm2png.py build/schermate/copertine
 
 build/libri/prova.epub: strumenti/crea-epub-prova.py
 	@mkdir -p build/libri

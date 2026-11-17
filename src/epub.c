@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <strings.h>
 
 #include "../third_party/miniz/miniz.h"
@@ -513,12 +514,16 @@ static int ends_with(const char *s, const char *suffix)
     return a >= b && strcasecmp(s + a - b, suffix) == 0;
 }
 
-int book_peek_meta(const char *path, char **title, char **author)
+int book_peek_meta(const char *path, char **title, char **author, long long *text_bytes)
 {
     *title = *author = NULL;
+    *text_bytes = 0;
     if (ends_with(path, ".txt")) {
         *title = base_name(path);
         *author = xstrdup("");
+        struct stat st;
+        if (stat(path, &st) == 0)
+            *text_bytes = st.st_size;
         return 0;
     }
     mz_zip_archive z;
@@ -536,6 +541,13 @@ int book_peek_meta(const char *path, char **title, char **author)
         *author = xstrdup(o.author ? o.author : "");
         opf_free(&o);
         rc = 0;
+    }
+    /* text size: all the (X)HTML files, read from the zip directory (no decompression) */
+    for (mz_uint i = 0; i < mz_zip_reader_get_num_files(&z); i++) {
+        mz_zip_archive_file_stat fs;
+        if (mz_zip_reader_file_stat(&z, i, &fs) &&
+            (ends_with(fs.m_filename, ".xhtml") || ends_with(fs.m_filename, ".html") || ends_with(fs.m_filename, ".htm")))
+            *text_bytes += (long long)fs.m_uncomp_size;
     }
     free(data);
     free(opf);

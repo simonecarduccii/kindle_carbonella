@@ -2,8 +2,9 @@
  * Carbonella - fonts.
  *
  * TrueType rendering with stb_truetype (one header file, public domain): far lighter than FreeType
- * and enough for our needs. The font is Literata (SIL Open Font License), designed by TypeTogether
- * for reading on screens, reduced to Latin characters to save space and memory.
+ * and enough for our needs. Fonts (SIL Open Font License), reduced to Latin characters to save
+ * space and memory: Literata (TypeTogether) for reading and cover titles, IBM Plex Mono for the status
+ * lines and captions, IBM Plex Sans for menus - the same families as the Figma design.
  *
  * Every glyph is rendered once and kept in a cache (key: face, size, sub-pixel position, code point).
  * Anti-aliased pixels pass through a "darkening" curve: on e-ink light greys disappear, so thin
@@ -21,7 +22,10 @@
 #include "../third_party/stb/stb_truetype.h"
 
 static const char *FILES[FACE_COUNT] = { "Literata-Regular.ttf", "Literata-Italic.ttf",
-                                         "Literata-Bold.ttf", "Literata-BoldItalic.ttf" };
+                                         "Literata-Bold.ttf", "Literata-BoldItalic.ttf",
+                                         "IBMPlexMono-Regular.ttf", "IBMPlexMono-Medium.ttf",
+                                         "IBMPlexSans-Regular.ttf", "IBMPlexSans-Medium.ttf",
+                                         "Literata-SemiBold.ttf" };
 
 static struct {
     unsigned char *data;
@@ -68,8 +72,18 @@ int font_load(const char *dir)
         return -1;
     /* missing faces fall back to the closest one */
     for (int f = 1; f < FACE_COUNT; f++)
-        if (!F[f].ok)
-            F[f] = F[f == FACE_BOLD_ITALIC && F[FACE_BOLD].ok ? FACE_BOLD : FACE_REGULAR];
+        if (!F[f].ok) {
+            int fb = FACE_REGULAR;
+            if (f == FACE_BOLD_ITALIC && F[FACE_BOLD].ok)
+                fb = FACE_BOLD;
+            else if (f == FACE_MONO_MEDIUM && F[FACE_MONO].ok)
+                fb = FACE_MONO;
+            else if (f == FACE_SANS_MEDIUM)
+                fb = F[FACE_SANS].ok ? FACE_SANS : FACE_BOLD;
+            else if (f == FACE_SEMIBOLD)
+                fb = FACE_BOLD;
+            F[f] = F[fb];
+        }
     for (int i = 0; i < 256; i++)
         darken[i] = (uint8_t)lrintf(255.0f * powf(i / 255.0f, 0.70f));
     cache = xcalloc(CACHE_SLOTS, sizeof(Slot));
@@ -108,7 +122,7 @@ static int find_glyph(Face f, uint32_t cp)
 
 static Slot *lookup(Face f, int size, int sub, uint32_t cp)
 {
-    uint64_t key = ((uint64_t)(f + 1) << 40) | ((uint64_t)(size & 0xFF) << 32) | ((uint64_t)sub << 24) |
+    uint64_t key = ((uint64_t)(f + 1) << 44) | ((uint64_t)(size & 0xFFF) << 32) | ((uint64_t)sub << 24) |
                    (cp & 0xFFFFFF);
     uint32_t h = (uint32_t)((key * 0x9E3779B97F4A7C15ull) >> 50) & (CACHE_SLOTS - 1);
     for (;;) {

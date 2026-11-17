@@ -348,9 +348,8 @@ TextPos layout_page(const LayoutParams *lp, const Chapter *ch, TextPos from, Can
                 p.pos = ch->blocks[p.block].start;
             continue;
         }
-        int ascent = bs.size * 80 / 100; /* baseline position inside the line box */
-        int hyph_run = 0;                /* consecutive hyphenated lines */
-        int pad = (bs.lh - bs.size) / 2;
+        int base = ui_baseline(FACE_REGULAR, bs.size, 0, bs.lh); /* baseline inside the line box, as CSS */
+        int hyph_run = 0;                                         /* consecutive hyphenated lines */
         int done = 0;
         while (p.pos < bk->end || (fresh && bk->start == bk->end)) {
             if (y + bs.lh > bottom) {
@@ -364,7 +363,7 @@ TextPos layout_page(const LayoutParams *lp, const Chapter *ch, TextPos from, Can
             break_line(ch, bk, &bs, p.pos, width - indent, lp->hyphenate && bs.align != 2 && hyph_run < 2, &ln);
             hyph_run = ln.hyphen ? hyph_run + 1 : 0;
             if (c)
-                draw_line(c, ch, &bs, &ln, lp->margin_x + indent, width - indent, y + pad + ascent);
+                draw_line(c, ch, &bs, &ln, lp->margin_x + indent, width - indent, y + base);
             y += bs.lh;
             p.pos = ln.next;
             fresh = 0;

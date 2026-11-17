@@ -284,6 +284,51 @@ static void print_pages_load(Library *lib, const char *path)
     log_msg("library: %s gives paper pages for %d books", path, found);
 }
 
+/* "Pagine del cartaceo" typed by hand: rewrites the book's line in dati/pagine_carta.tsv (or adds
+ * it). pages <= 0 removes the line, so the shipped table or the EPUB page list count again (the caller
+ * rescans the library to see them). Returns 0 on success. */
+int print_pages_set(const char *data_dir, LibEntry *e, int pages)
+{
+    char path[1024];
+    snprintf(path, sizeof path, "%s/pagine_carta.tsv", data_dir);
+    char kt[256], ka[256];
+    match_key(e->title, kt, sizeof kt);
+    match_key(e->author, ka, sizeof ka);
+    char *old = read_file(path, NULL);
+    size_t cap = (old ? strlen(old) : 0) + strlen(e->title) + strlen(e->author) + 256, n = 0;
+    char *buf = xmalloc(cap);
+    if (!old)
+        n += snprintf(buf + n, cap - n, "# Pagine del cartaceo scritte a mano sul Kindle: valgono più di tutto.\n"
+                                        "# titolo<TAB>autore<TAB>pagine<TAB>nota\n");
+    char *save = NULL;
+    for (char *line = old ? strtok_r(old, "\n", &save) : NULL; line; line = strtok_r(NULL, "\n", &save)) {
+        if (line[0] != '#') {
+            char copy[1024], *f[4];
+            snprintf(copy, sizeof copy, "%s", line);
+            if (split_tsv(copy, f, 4) >= 2) {
+                char lt[256], la[256];
+                match_key(f[0], lt, sizeof lt);
+                match_key(f[1], la, sizeof la);
+                if (!strcmp(lt, kt) && !strcmp(la, ka))
+                    continue; /* the old line of this book */
+            }
+        }
+        n += snprintf(buf + n, cap - n, "%s\n", line);
+    }
+    if (pages > 0)
+        n += snprintf(buf + n, cap - n, "%s\t%s\t%d\tscritto a mano sul Kindle\n", e->title, e->author, pages);
+    free(old);
+    int rc = write_file_atomic(path, buf, n);
+    free(buf);
+    if (rc == 0 && pages > 0) {
+        e->print_pages = pages;
+        free(e->print_edition);
+        e->print_edition = xstrdup("scritto a mano sul Kindle");
+    }
+    log_msg("paper pages of %s set to %d (rc %d)", e->path, pages, rc);
+    return rc;
+}
+
 void library_scan(Library *lib, const char *books_dir, const char *data_dir, const char *base_dir)
 {
     double t0 = now_ms();

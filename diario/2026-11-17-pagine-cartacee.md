@@ -73,3 +73,17 @@ Il log sul Kindle dopo l'installazione del front end (e14f54f, 18:30 UTC) diceva
 books": erano le due copie di *Mr Gwyn*. Con questa tabella diventano 8.
 
 Tempo: circa 30 minuti per il codice, 20 per la ricerca delle pagine.
+
+## Libri caricati da Simone: "Pagine del cartaceo" (18:45 UTC)
+
+Simone: "Ma quando caricherò io in autonomia un libro come fa la ricerca?". Ho proposto (1) uno script sul
+Mac che cerca le pagine nei cataloghi quando copia il libro e (2) una voce nel menu del libro per scriverle
+a mano. Simone: "2 mi piace". Niente script per ora.
+
+Lato back end c'è `print_pages_set(data_dir, entry, pagine)`: scrive o sostituisce la riga del libro in
+`dati/pagine_carta.tsv` (che vale più di tutto) con la nota "scritto a mano sul Kindle". Con 0 la riga si
+toglie e tornano a valere la tabella di Carbonella o la lista dell'EPUB, dopo una nuova lettura della
+libreria. La voce di menu la disegna il front end.
+
+Prova: scritte 250 pagine per un libro, 430 e poi 440 per un altro (resta una riga sola, con 440), poi
+tolta l'ultima: torna il 425 della tabella. AddressSanitizer pulito.

@@ -22,6 +22,7 @@ schermate di ogni passo.
 | 17 nov 00:41–00:50 | **v0.3.0 / v0.3.1**: bianco puro, menu sopra il testo, Impostazioni, Home 7× più veloce | [v03-appunti-di-simone](2026-11-17-v03-appunti-di-simone.md) |
 | 17 nov 01:10–01:13 | **v0.4.0 / v0.4.1 "I menu di Figma"**: testi parola per parola, segnalibri, Cerca, Vai a pagina, raccolte | [v04-menu-di-figma](2026-11-17-v04-menu-di-figma.md) |
 | 17 nov 01:34–01:35 | **v0.5.0 / v0.5.1 "Obiettivi"**: schermata Obiettivi, avviso obiettivo raggiunto, popup raccolte, Archivia libro | [v05-obiettivi](2026-11-17-v05-obiettivi.md) |
+| 17 nov 09:50 | **v0.5.3**: ritocchi di Simone (barra di lettura nera, Obiettivi senza piè di pagina) | [v05-obiettivi](2026-11-17-v05-obiettivi.md#v053-0950-utc-ritocchi-di-simone) |
 | 17 nov 01:54 | **v0.5.2**: lo standby con la copertina funziona davvero (il tasto di accensione veniva ignorato) | [v05-obiettivi](2026-11-17-v05-obiettivi.md#v052-lo-standby-non-funzionava) |
 
 ## Cosa abbiamo imparato

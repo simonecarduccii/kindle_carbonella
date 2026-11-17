@@ -2,6 +2,12 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Finché siamo a `0.x` tutto può cambiare.
 
+## v0.6.1 · 2026-11-17
+
+- *Standby automatico dopo*: sul Kindle 4 powerd non ha la proprietà `powerButton` che usava la v0.6.0.
+  Ora la pressione del tasto di accensione viene simulata con `powerd_test -p`, lo strumento di prova
+  di powerd che c'è già sul Kindle.
+
 ## v0.6.0 · 2026-11-17
 
 Le modifiche di Simone in Figma e le copertine dai suoi modelli di editori.

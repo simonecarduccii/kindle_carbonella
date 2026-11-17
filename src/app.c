@@ -229,13 +229,14 @@ static void touch_screensaver(void)
         log_msg("touchScreenSaverTimeout failed");
 }
 
-/* "Standby automatico dopo": no key for standby_min minutes. We ask powerd to go to standby as if the
- * power button were pressed; it then sends goingToScreenSaver and the cover appears as usual. */
+/* "Standby automatico dopo": no key for standby_min minutes. powerd on the K4 has no lipc property for
+ * the power button, so we use its test tool to simulate a press ("powerd_test -p"); powerd then sends
+ * goingToScreenSaver and the cover appears as usual. */
 static void auto_standby(App *a)
 {
     log_msg("no key for %d min: standby", a->standby_min);
-    if (system("lipc-set-prop com.lab126.powerd powerButton 1 >/dev/null 2>&1") != 0)
-        log_msg("powerButton failed");
+    if (system("powerd_test -p >/dev/null 2>&1") != 0)
+        log_msg("powerd_test -p failed");
 }
 
 static Key wait_key(App *a, int *raw)

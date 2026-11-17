@@ -352,7 +352,7 @@ typedef struct {
 /* v1.0.2: store titles often end with edition notes, e.g. "Così parlò Zarathustra (Piccola biblioteca
  * Adelphi) (Italian Edition)" or "La morte della Pizia (Adelphi)": trailing groups in parentheses are
  * dropped, unless that would leave nothing. */
-static void clean_title(char *t)
+void book_clean_title(char *t)
 {
     if (!t)
         return;
@@ -451,7 +451,7 @@ static int parse_opf(const char *data, size_t len, Opf *o, int meta_only)
             continue;
         if (name_is(&t, "title") && !o->title && !t.self_close) {
             o->title = element_text(&x, "title");
-            clean_title(o->title);
+            book_clean_title(o->title);
         } else if (name_is(&t, "creator") && !t.self_close) {
             char role[32] = "";
             xml_attr(&t, "role", role, sizeof role);

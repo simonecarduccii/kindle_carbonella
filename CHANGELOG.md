@@ -11,6 +11,10 @@ Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Dalla 1.0.0 le versi
   accensione). Il tasto di accensione manda sempre subito nello standby vero.
 - Modello **Feltrinelli** aggiornato alla reference di Simone: illustrazione quadrata 496×496 più
   chiara (#AAA), autore 38 px, marchio "Universale Economica Feltrinelli" a 15 px.
+- **Titoli e autori normalizzati** per tutti i libri, anche quelli già in libreria: niente note tra
+  parentesi nel titolo, autore sempre "Nome Cognome". "Calvino, Italo" diventa "Italo Calvino"; se il
+  file si chiama "Nome Cognome - Titolo.epub" vale l'ordine del file; altrimenti, se l'ultima parola è
+  un nome proprio noto e la prima no ("Camus Albert"), si inverte.
 - Tolto il tentativo della v1.0.1 (Home nello standby vero), che non poteva funzionare.
 
 ## v1.0.2 · 2026-11-17

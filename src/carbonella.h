@@ -231,6 +231,7 @@ Book *book_open(const char *path);
 void book_close(Book *b);
 /* Reads only title/author (fast path for the library). Returns 0 on success. */
 /* Reads title, author and publisher (dc:publisher, "" if missing) without opening the chapters. */
+void book_clean_title(char *t); /* drops trailing "(…)" notes: edition, publisher, language */
 int book_peek_meta(const char *path, char **title, char **author, char **publisher, long long *text_bytes);
 /* Loads and parses one spine item. Returns NULL on error. */
 Chapter *book_chapter(Book *b, int spine);

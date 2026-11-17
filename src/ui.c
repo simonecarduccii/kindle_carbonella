@@ -690,29 +690,30 @@ static void model_feltrinelli(const Model *m, const char *t, const char *au, con
 {
     mrect(m, 0, 0, 600, 800, G_SMOG);      /* #666 at the top edge */
     mrect(m, 0, 29, 600, 771, G_LEGGERO);  /* #CCC panel */
-    int na = model_text(m, FACE_MONO_BOLD, 36, 0.10f, 1.3f, 82, 0, 466, 0, 2, au, 1, G_NERO, 1);
+    int na = model_text(m, FACE_MONO_BOLD, 38, 0.10f, 1.3f, 82, 0, 466, 0, 2, au, 1, G_NERO, 1);
     int nt = model_text(m, FACE_MONO_BOLD, 40, 0, 1.18f, 82, 0, 466, 0, 2, t, 0, G_GRAFITE, 1);
-    float nh = lines_h(36, 1.3f, na) + 4 + lines_h(40, 1.18f, nt);
-    /* illustration from 73, then name and title, then the logo at 711: equal gaps */
-    float ih = 414, gap = (711 - 73 - ih - nh) / 2;
+    float nh = lines_h(38, 1.3f, na) + 4 + lines_h(40, 1.18f, nt);
+    /* illustration from 73 (square since v1.0.2, as in Simone's reference), then name and title, then the
+     * logo at 708: equal gaps */
+    float ih = 496, gap = (708 - 73 - ih - nh) / 2;
     if (gap < 24) {
         gap = 24;
-        ih = 711 - 73 - nh - 2 * gap;
+        ih = 708 - 73 - nh - 2 * gap;
     }
     if (ih > 40)
-        illustration(m, 52, 73, 496, ih, G_CENERE);
+        illustration(m, 52, 73, 496, ih, G_FUMO); /* #AAA */
     float ntop = 73 + ih + gap;
-    model_text(m, FACE_MONO_BOLD, 36, 0.10f, 1.3f, 82, ntop, 466, 0, 2, au, 1, G_NERO, 0);
-    model_text(m, FACE_MONO_BOLD, 40, 0, 1.18f, 82, ntop + lines_h(36, 1.3f, na) + 4, 466, 0, 2, t, 0, G_GRAFITE, 0);
-    float tri[6] = { m->ox + 52 * m->s, m->oy + 737 * m->s, m->ox + 77 * m->s, m->oy + 712 * m->s,
-                     m->ox + 77 * m->s, m->oy + 762 * m->s };
+    model_text(m, FACE_MONO_BOLD, 38, 0.10f, 1.3f, 82, ntop, 466, 0, 2, au, 1, G_NERO, 0);
+    model_text(m, FACE_MONO_BOLD, 40, 0, 1.18f, 82, ntop + lines_h(38, 1.3f, na) + 4, 466, 0, 2, t, 0, G_GRAFITE, 0);
+    float tri[6] = { m->ox + 52 * m->s, m->oy + 735 * m->s, m->ox + 77 * m->s, m->oy + 710 * m->s,
+                     m->ox + 77 * m->s, m->oy + 760 * m->s };
     canvas_polygon(m->c, tri, 3, mink(m, G_NERO));
     if (ours) {
         static const char *L[3] = { "universale", "economica", "feltrinelli" };
         for (int i = 0; i < 3; i++)
-            model_text(m, FACE_MONO_BOLD, 14, 0.10f, 1.2f, 88, 711 + 17 * i, 300, 0, 1, L[i], 1, G_NERO, 0);
+            model_text(m, FACE_MONO_BOLD, 15, 0.10f, 1.2f, 88, 708 + 18 * i, 300, 0, 1, L[i], 1, G_NERO, 0);
     } else
-        model_text(m, FACE_MONO_BOLD, 14, 0.10f, 1.2f, 88, 728, 460, 0, 1, pub, 1, G_NERO, 0);
+        model_text(m, FACE_MONO_BOLD, 15, 0.10f, 1.2f, 88, 726, 460, 0, 1, pub, 1, G_NERO, 0);
 }
 
 static void model_bompiani(const Model *m, const char *t, const char *au, const char *pub, int ours)

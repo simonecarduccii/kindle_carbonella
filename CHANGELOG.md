@@ -2,6 +2,17 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Dalla 1.0.0 le versioni MINORE aggiungono cose, le CORREZIONE sistemano.
 
+## v1.0.3 · 2026-11-17
+
+- **Standby leggero, risvegliabile con Home.** Prova sul Kindle: nello standby vero di powerd la
+  tastiera del K4 è spenta (nessun interrupt), quindi Home non può arrivare. Ora lo *Standby automatico*
+  prima mostra la copertina restando sveglio: qualsiasi tasto, Home compreso, riporta la pagina. Dopo
+  3 minuti senza tasti parte lo standby vero (sonno profondo, si sveglia solo con il tasto di
+  accensione). Il tasto di accensione manda sempre subito nello standby vero.
+- Modello **Feltrinelli** aggiornato alla reference di Simone: illustrazione quadrata 496×496 più
+  chiara (#AAA), autore 38 px, marchio "Universale Economica Feltrinelli" a 15 px.
+- Tolto il tentativo della v1.0.1 (Home nello standby vero), che non poteva funzionare.
+
 ## v1.0.2 · 2026-11-17
 
 - Titoli più puliti: le note tra parentesi alla fine del titolo dell'EPUB vengono tolte, per esempio

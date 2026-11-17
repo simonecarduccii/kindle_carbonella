@@ -204,20 +204,9 @@ static void standby(App *a)
         cover_draw(&a->cv, 0, 0, a->W, a->H, "Carbonella", a->name, "", 0);
     full(a, REFRESH_FULL);
     log_msg("standby");
-    time_t home_at = 0;
     for (;;) {
         Key k = input_wait(-1, NULL);
         if (k == K_WAKE || k == K_QUIT)
-            break;
-        /* v1.0.1: the Home key wakes the Kindle too (Simone). We ask powerd for the same thing the power
-         * button does; powerd then sends outOfScreenSaver (K_WAKE). It only works while the Kindle is
-         * in screen saver: in deep sleep the CPU is off and only the power button wakes it. */
-        if (k == K_HOME && !g_sim && time(NULL) - home_at >= 3) {
-            home_at = time(NULL);
-            log_msg("home key: wake up");
-            if (system("powerd_test -p >/dev/null 2>&1") != 0)
-                log_msg("powerd_test -p failed");
-        } else if (k == K_HOME && g_sim)
             break;
     }
     log_msg("wake up");
@@ -243,11 +232,43 @@ static void touch_screensaver(void)
 /* "Standby automatico dopo": no key for standby_min minutes. powerd on the K4 has no lipc property for
  * the power button, so we use its test tool to simulate a press ("powerd_test -p"); powerd then sends
  * goingToScreenSaver and the cover appears as usual. */
-static void auto_standby(App *a)
+static int auto_standby(App *a)
 {
     log_msg("no key for %d min: standby", a->standby_min);
-    if (system("powerd_test -p >/dev/null 2>&1") != 0)
+    if (system("powerd_test -p >/dev/null 2>&1") != 0) {
         log_msg("powerd_test -p failed");
+        return -1;
+    }
+    return 0;
+}
+
+/* v1.0.3 "light standby": in powerd's screen saver the K4 keypad is switched off (no interrupts at
+ * all, measured 2026-11-17), so the Home key cannot wake it. So the automatic standby first only shows
+ * the cover while Carbonella stays awake: any key (Home too) brings the page back. After
+ * LIGHT_STANDBY_MS without keys the real standby of powerd starts (deep sleep, only the power button
+ * wakes). Returns the key that ended it: K_TIMEOUT, K_SLEEP (power button) or K_QUIT leave the page
+ * in the canvas without drawing it. */
+#define LIGHT_STANDBY_MS (3 * 60000)
+static Key light_standby(App *a)
+{
+    uint8_t *saved = xmalloc((size_t)a->W * a->H);
+    memcpy(saved, a->cv.px, (size_t)a->W * a->H);
+    LibEntry *e = a->entry && a->book ? a->entry : (a->lib.n > 0 ? &a->lib.e[0] : NULL);
+    canvas_clear(&a->cv, G_CARTA);
+    if (e)
+        cover_draw(&a->cv, 0, 0, a->W, a->H, e->title, e->author, e->publisher, 0);
+    else
+        cover_draw(&a->cv, 0, 0, a->W, a->H, "Carbonella", a->name, "", 0);
+    full(a, REFRESH_FULL);
+    log_msg("light standby");
+    Key k = input_wait(LIGHT_STANDBY_MS, NULL);
+    memcpy(a->cv.px, saved, (size_t)a->W * a->H);
+    free(saved);
+    if (k == K_TIMEOUT || k == K_SLEEP || k == K_QUIT) /* the page is back in the canvas, not on screen */
+        return k;
+    log_msg("light standby: key, wake up");
+    full(a, REFRESH_FULL);
+    return k;
 }
 
 static Key wait_key(App *a, int *raw)
@@ -259,8 +280,16 @@ static Key wait_key(App *a, int *raw)
     }
     Key k = input_wait(t, raw);
     if (k == K_TIMEOUT && sb) {
-        auto_standby(a);
-        return K_NONE;
+        Key w = light_standby(a);
+        if (w == K_TIMEOUT) { /* powerd's goingToScreenSaver arrives next: standby() shows the cover */
+            log_msg("light standby over: real standby");
+            if (auto_standby(a) != 0)
+                full(a, REFRESH_FULL); /* no real standby: the page comes back */
+        } else if (w == K_SLEEP) /* the power button during the light standby */
+            standby(a);
+        else if (w == K_QUIT)
+            return K_QUIT;
+        return K_NONE; /* the key that woke it does nothing else */
     }
     if (k != K_TIMEOUT && k != K_SLEEP && k != K_WAKE)
         touch_screensaver(); /* someone is reading: powerd's own timer starts again */

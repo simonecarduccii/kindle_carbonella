@@ -344,6 +344,7 @@ static int popup_run(App *a, Row *rows, int n, int sel)
     int w = 424, h = 16 + n * 56 + 16;
     int x = (a->W - w) / 2, y = (a->H - h) / 2;
     canvas_fill(&a->cv, x, y, w, h, G_CARTA);
+    canvas_frame(&a->cv, x - 1, y - 1, w + 2, h + 2, 1, G_GRAFITE); /* 1 px #222 outside, Simone v0.6.2 */
     int first = 1;
     for (;;) {
         for (int i = 0; i < n; i++)

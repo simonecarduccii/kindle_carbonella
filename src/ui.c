@@ -58,12 +58,18 @@ void ui_header(Canvas *c, const char *left, const char *center, double bar)
     /* right group, from the right edge: pole, battery, percentage, time */
     int x = W - 32;
     int pct = battery_percent();
-    canvas_fill(c, x - 2, 21, 2, 6, G_NERO);
+    /* battery icon (Simone, v0.6.2): 24 x 13 body, 2 px outline with rounded corners, 18 x 7 charge
+     * 1 px inside, 2 x 6 pole */
+    canvas_fill(c, x - 2, 20, 2, 6, G_NERO);
     x -= 2 + 24;
-    canvas_frame(c, x, 18, 24, 12, 2, G_NERO);
+    canvas_frame(c, x, 17, 24, 13, 2, G_NERO);
+    canvas_fill(c, x, 17, 1, 1, G_CARTA); /* radius 1 */
+    canvas_fill(c, x + 23, 17, 1, 1, G_CARTA);
+    canvas_fill(c, x, 29, 1, 1, G_CARTA);
+    canvas_fill(c, x + 23, 29, 1, 1, G_CARTA);
     if (pct > 0) {
-        int fw = (int)lrintf(19.5f * (pct > 100 ? 100 : pct) / 100);
-        canvas_fill(c, x + 3, 21, fw, 6, G_NERO);
+        int fw = (int)lrintf(18.0f * (pct > 100 ? 100 : pct) / 100);
+        canvas_fill(c, x + 3, 20, fw < 1 ? 1 : fw, 7, G_NERO);
     }
     char buf[16];
     if (pct >= 0) {

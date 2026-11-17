@@ -2,6 +2,11 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Finché siamo a `0.x` tutto può cambiare.
 
+## v0.6.2 · 2026-11-17
+
+- Pannello delle raccolte (*Aggiungi alla raccolta*): bordo di 1 px #222 intorno, come nel frame di Simone.
+- Nuova icona della batteria nell'intestazione: corpo 24×13 con bordo di 2 px e angoli arrotondati, carica 18×7, polo 2×6.
+
 ## v0.6.1 · 2026-11-17
 
 - *Standby automatico dopo*: sul Kindle 4 powerd non ha la proprietà `powerButton` che usava la v0.6.0.

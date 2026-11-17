@@ -2,6 +2,22 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Dalla 1.0.0 le versioni MINORE aggiungono cose, le CORREZIONE sistemano.
 
+## v1.1.0 · 2026-11-17 · "Faldoni e Obiettivi"
+
+Due schermate ridisegnate come i nuovi frame di Simone in Figma.
+
+- **Raccolte come due faldoni**: nella Home le raccolte e "Libri letti" sono due faldoni affiancati,
+  come il componente Figma "Raccolta 600×800 / Due faldoni". Le etichette dei faldoni sono vuote; nome
+  e numero dei libri restano nella riga sotto. Le copertine dei libri non compaiono più sulle raccolte.
+- **Nuova schermata Obiettivi** (frame di Simone 102:2118):
+  - in alto *Obiettivi* e, sotto, OGGI con i minuti letti, *questa settimana* e una barra sottile;
+  - il calendario del mese a celle numerate (i giorni letti sono scuri);
+  - *giorni di fila* e *record giorni di fila*;
+  - QUEST'ANNO: "3 libri letti di 12" con una casella numerata per ogni libro e lo stato ("in linea" o
+    "in ritardo");
+  - il gruppo IMPOSTA con *Obiettivo giornaliero* e *Libri da leggere nell'anno*;
+  - niente piè di pagina.
+
 ## v1.0.6 · 2026-11-17
 
 - **Menu della Home nel nuovo ordine** di Simone (Figma, Pannello menu > Home): Crea nuova raccolta,

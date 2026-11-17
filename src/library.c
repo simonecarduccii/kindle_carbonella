@@ -7,6 +7,7 @@
  *   libreria.tsv   title/author/text size cache, so we do not reopen every EPUB at each start
  *   posizioni.tsv  last position, percentage and estimated pages of every book
  *   letture.tsv    reading sessions (start, end, pages): the base for the "Obiettivi" screen
+ *   pagine_carta.tsv  (optional) pages of the paper edition, wins over the copy shipped with Carbonella
  */
 #include "carbonella.h"
 
@@ -221,7 +222,69 @@ static char *normalize_author(char *au, const char *path)
     return au;
 }
 
-void library_scan(Library *lib, const char *books_dir, const char *data_dir)
+/* ------------------------------------------------- pages of the paper edition */
+
+/* Comparison key: lowercase letters and digits only, accents dropped ("Così parlò" = "cosi parlo"). */
+static void match_key(const char *s, char *out, size_t n)
+{
+    static const char LAT1[] = "aaaaaaaceeeeiiiidnooooo/ouuuuyty"; /* U+00E0..U+00FF */
+    size_t j = 0;
+    const unsigned char *p = (const unsigned char *)s;
+    while (*p && j + 1 < n) {
+        uint32_t cp;
+        int k = utf8_decode(p, strlen((const char *)p), &cp);
+        p += k;
+        if (cp >= 0xC0 && cp <= 0xDE && cp != 0xD7)
+            cp += 0x20; /* upper to lower case */
+        if (cp >= 0xE0 && cp <= 0xFF)
+            cp = (unsigned char)LAT1[cp - 0xE0];
+        if (cp < 128 && isalnum((int)cp))
+            out[j++] = (char)tolower((int)cp);
+    }
+    out[j] = 0;
+}
+
+/* pagine_carta.tsv: titolo <TAB> autore <TAB> pagine <TAB> edizione (editore anno, ISBN), '#' comments.
+ * Books are matched by title and author, not by file, so the pages stay when a book changes folder.
+ * An empty author matches any author. Files read later win. */
+static void print_pages_load(Library *lib, const char *path)
+{
+    char *data = read_file(path, NULL);
+    if (!data)
+        return;
+    int found = 0;
+    char *save = NULL;
+    for (char *line = strtok_r(data, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
+        line[strcspn(line, "\r")] = 0;
+        if (line[0] == '#' || !line[0])
+            continue;
+        char *f[4];
+        int nf = split_tsv(line, f, 4);
+        if (nf < 3 || atoi(f[2]) <= 0)
+            continue;
+        char kt[256], ka[256];
+        match_key(f[0], kt, sizeof kt);
+        match_key(f[1], ka, sizeof ka);
+        if (!kt[0])
+            continue;
+        for (int i = 0; i < lib->n; i++) {
+            LibEntry *e = &lib->e[i];
+            char et[256], ea[256];
+            match_key(e->title, et, sizeof et);
+            match_key(e->author, ea, sizeof ea);
+            if (strcmp(kt, et) != 0 || (ka[0] && strcmp(ka, ea) != 0))
+                continue;
+            e->print_pages = atoi(f[2]);
+            free(e->print_edition);
+            e->print_edition = xstrdup(nf >= 4 ? f[3] : "");
+            found++;
+        }
+    }
+    free(data);
+    log_msg("library: %s gives paper pages for %d books", path, found);
+}
+
+void library_scan(Library *lib, const char *books_dir, const char *data_dir, const char *base_dir)
 {
     double t0 = now_ms();
     library_free(lib);
@@ -235,8 +298,8 @@ void library_scan(Library *lib, const char *books_dir, const char *data_dir)
     if (cache) {
         char *save = NULL;
         for (char *line = strtok_r(cache, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
-            char *f[7];
-            if (split_tsv(line, f, 7) < 7) /* lines before v0.6 had no publisher: read the book again */
+            char *f[8];
+            if (split_tsv(line, f, 8) < 8) /* lines before v1.1 had no page list: read the book again */
                 continue;
             LibEntry *e = library_find(lib, f[0]);
             if (e && !e->title && atoll(f[1]) == e->size && atoll(f[2]) == e->mtime) {
@@ -244,6 +307,7 @@ void library_scan(Library *lib, const char *books_dir, const char *data_dir)
                 e->author = xstrdup(f[4]);
                 e->text_bytes = atoll(f[5]);
                 e->publisher = xstrdup(f[6]);
+                e->print_pages_epub = atoi(f[7]);
                 from_cache++;
             }
         }
@@ -255,7 +319,8 @@ void library_scan(Library *lib, const char *books_dir, const char *data_dir)
             continue;
         free(e->publisher);
         e->publisher = NULL;
-        if (book_peek_meta(e->path, &e->title, &e->author, &e->publisher, &e->text_bytes) != 0) {
+        if (book_peek_meta(e->path, &e->title, &e->author, &e->publisher, &e->text_bytes,
+                           &e->print_pages_epub) != 0) {
             const char *s = strrchr(e->path, '/');
             e->title = xstrdup(s ? s + 1 : e->path);
             e->author = xstrdup("(file non leggibile)");
@@ -287,8 +352,8 @@ void library_scan(Library *lib, const char *books_dir, const char *data_dir)
                 cap = (n + need) * 2;
                 buf = xrealloc(buf, cap);
             }
-            n += snprintf(buf + n, cap - n, "%s\t%lld\t%lld\t%s\t%s\t%lld\t%s\n", e->path, e->size, e->mtime,
-                          e->title, e->author, e->text_bytes, e->publisher);
+            n += snprintf(buf + n, cap - n, "%s\t%lld\t%lld\t%s\t%s\t%lld\t%s\t%d\n", e->path, e->size,
+                          e->mtime, e->title, e->author, e->text_bytes, e->publisher, e->print_pages_epub);
         }
         write_file_atomic(path, buf, n);
         free(buf);
@@ -316,6 +381,16 @@ void library_scan(Library *lib, const char *books_dir, const char *data_dir)
         }
         free(pos);
     }
+    /* pages of the paper edition: the EPUB page list, then the hand-checked tables */
+    for (int i = 0; i < lib->n; i++) {
+        lib->e[i].print_pages = lib->e[i].print_pages_epub;
+        lib->e[i].print_edition = xstrdup("");
+    }
+    snprintf(path, sizeof path, "%s/pagine_carta.tsv", base_dir);
+    print_pages_load(lib, path);
+    snprintf(path, sizeof path, "%s/pagine_carta.tsv", data_dir);
+    print_pages_load(lib, path);
+
     qsort(lib->e, lib->n, sizeof(LibEntry), cmp_entries);
     log_msg("library: %d books (%d from cache, %d opened) in %.0f ms", lib->n, from_cache, opened, now_ms() - t0);
 }
@@ -362,6 +437,7 @@ void library_free(Library *lib)
         free(lib->e[i].title);
         free(lib->e[i].author);
         free(lib->e[i].publisher);
+        free(lib->e[i].print_edition);
     }
     free(lib->e);
     memset(lib, 0, sizeof *lib);

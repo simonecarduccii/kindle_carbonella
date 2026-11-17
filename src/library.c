@@ -268,12 +268,16 @@ void library_scan(Library *lib, const char *books_dir, const char *data_dir)
         opened++;
     }
     /* titles and authors always clean, also the ones from an older cache */
+    int changed = 0;
     for (int i = 0; i < lib->n; i++) {
         LibEntry *e = &lib->e[i];
+        size_t tl = strlen(e->title);
+        char *old = e->author;
         book_clean_title(e->title);
         e->author = normalize_author(e->author, e->path);
+        changed |= strlen(e->title) != tl || e->author != old;
     }
-    if (opened) {
+    if (opened || changed) { /* the cache also gets the clean names */
         size_t cap = 4096, n = 0;
         char *buf = xmalloc(cap);
         for (int i = 0; i < lib->n; i++) {

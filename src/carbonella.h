@@ -18,7 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define CARBONELLA_VERSION "0.2.0"
+#define CARBONELLA_VERSION "0.3.0"
 
 /* ------------------------------------------------------------------ util */
 
@@ -60,7 +60,7 @@ int settings_save(const Settings *s, const char *path, const char *header);
 /* Values are "ink": 0 = paper (white), 255 = full black.
  * This is also exactly the Kindle 4 framebuffer format (eink_fb, 8 bpp). */
 /* The grey scale of the Figma design ("E-ink" styles), as ink. Paper is Carta #EEE, never pure white. */
-#define G_CARTA 17     /* #EEE paper */
+#define G_CARTA 0      /* paper: pure white (Simone, v0.3: maximum contrast) */
 #define G_LEGGERO 51   /* #CCC */
 #define G_VELO 68      /* #BBB */
 #define G_FUMO 85      /* #AAA */
@@ -169,6 +169,7 @@ void ui_progress(Canvas *c, int x, int w, int y_bottom, const char *left, const 
                  double frac, uint8_t track);
 void ui_menu_row(Canvas *c, int x, int y, int w, const char *label, const char *value, MenuIcon icon, int focus);
 void ui_title(Canvas *c, int y, const char *title);
+void ui_group_label(Canvas *c, int x, float top, const char *label);
 /* Wrapped text, at most max_lines (the last one ends with "…"). Returns the number of lines. */
 int ui_text_block(Canvas *c, Face f, int size, float lh, int x, float top, int w, int max_lines, const char *s,
                   uint8_t ink, int count_only);

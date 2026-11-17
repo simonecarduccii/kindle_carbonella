@@ -34,6 +34,14 @@ static const int SIZES[] = { 14, 16, 18, 20, 22, 24, 28 };
 static const int GOALS[] = { 10, 15, 20, 30, 45, 60, 90 };
 #define NGOALS ((int)(sizeof GOALS / sizeof GOALS[0]))
 static const char *SORTS[] = { "Più recente", "Titolo", "Autore" };
+static const int LINES[] = { 130, 140, 150, 160, 180 };
+#define NLINES ((int)(sizeof LINES / sizeof LINES[0]))
+static const int MARGINS[] = { 32, 48, 64 };
+static const char *MARGIN_NAMES[] = { "Stretti", "Medi", "Larghi" };
+static const int FLASHES[] = { 1, 3, 6, 10, 20 };
+#define NFLASHES ((int)(sizeof FLASHES / sizeof FLASHES[0]))
+static const int YEARS[] = { 6, 12, 18, 24, 36, 52 };
+#define NYEARS ((int)(sizeof YEARS / sizeof YEARS[0]))
 
 /* Bytes of XHTML per page at 18 px, to estimate pages before a book is opened. */
 #define BYTES_PER_PAGE_18 2300.0
@@ -46,7 +54,7 @@ typedef struct {
     int W, H;
     Library lib;
     LayoutParams lp;
-    int flash_every, idle_ms, goal_min, sort;
+    int flash_every, idle_ms, goal_min, sort, books_year;
     int standby_seen; /* the Kindle told us about standby: no need for our own idle exit */
     /* reader */
     Book *book;
@@ -100,6 +108,10 @@ static void save_prefs(App *a)
     settings_set_int(&p, "dimensione_testo", a->lp.size);
     settings_set_int(&p, "obiettivo_minuti", a->goal_min);
     settings_set_int(&p, "ordina", a->sort);
+    settings_set_int(&p, "interlinea", a->lp.line_pct);
+    settings_set_int(&p, "margine", a->lp.margin_x);
+    settings_set_int(&p, "lampeggio_ogni", a->flash_every);
+    settings_set_int(&p, "libri_anno", a->books_year);
     settings_save(&p, a->prefs_path, "# Preferenze personali: valgono più di carbonella.conf e restano dopo gli aggiornamenti.");
     free_settings(&p);
 }
@@ -451,7 +463,7 @@ static int load_chapter(App *a, int spine, int which_page, uint32_t pos)
     return 0;
 }
 
-static void render_page(App *a, RefreshKind kind)
+static void draw_page(App *a)
 {
     canvas_clear(&a->cv, G_CARTA);
     if (a->ch && a->pg.n > 0)
@@ -464,6 +476,11 @@ static void render_page(App *a, RefreshKind kind)
     snprintf(pos, sizeof pos, "%d di %d", p, t);
     ui_progress(&a->cv, a->lp.margin_x, a->W - 2 * a->lp.margin_x, a->H, NULL, pos, NULL, percent_of(a) / 100.0,
                 G_VELO);
+}
+
+static void render_page(App *a, RefreshKind kind)
+{
+    draw_page(a);
     full(a, kind);
 }
 
@@ -540,14 +557,14 @@ static int size_index(int size)
     return best;
 }
 
-static void change_size(App *a, int delta)
+/* Paginate the open chapter again after a change of size, line spacing or margins,
+ * staying on the same text. */
+static void relayout(App *a)
 {
-    int i = size_index(a->lp.size) + delta;
-    if (i < 0 || i >= NSIZES)
+    a->lp.indent = a->lp.size * 4 / 3;
+    if (!a->book || !a->ch)
         return;
     uint32_t pos = a->pg.n ? a->pg.starts[a->page].pos : 0;
-    a->lp.size = SIZES[i];
-    a->lp.indent = a->lp.size * 4 / 3;
     paginate(&a->lp, a->ch, &a->pg);
     a->page = pagination_find(&a->pg, pos);
     a->cal_bytes = a->cal_pages = 0;
@@ -557,26 +574,217 @@ static void change_size(App *a, int delta)
         a->cal_pages = a->pg.n;
         a->cal_last_spine = a->spine;
     }
+}
+
+static void change_size(App *a, int delta)
+{
+    int i = size_index(a->lp.size) + delta;
+    if (i < 0 || i >= NSIZES)
+        return;
+    a->lp.size = SIZES[i];
+    relayout(a);
     save_prefs(a);
 }
 
-/* "02 · Lettura Menù": header with the book title, empty page, panel with the progress footer.
- * Returns where to go after the menu, or -1 to keep reading. */
+/* index of v in a list of n values (the closest one) */
+static int closest(const int *list, int n, int v)
+{
+    int best = 0;
+    for (int i = 0; i < n; i++)
+        if (abs(list[i] - v) < abs(list[best] - v))
+            best = i;
+    return best;
+}
+
+static int step(const int *list, int n, int v, int dir)
+{
+    return list[(closest(list, n, v) + dir + n) % n];
+}
+
+/* ------------------------------------------------------------ settings */
+
+static void key_test(App *a);
+
+enum {
+    S_GOAL, S_YEAR, S_FONT, S_SIZE, S_LINE, S_MARGIN, S_FLASH, S_VIEW, /* page 1, as in Figma */
+    S_SORT, S_RESCAN, S_KEYS, S_VERSION,                               /* page 2 */
+    S_N
+};
+
+typedef struct {
+    int page, group_top, row_top; /* group_top: y of the group label, 0 = same group as before */
+    const char *group, *label;
+} SetItem;
+
+/* "04 · Impostazioni": header, title, groups (label + rows of 56 px), "Pagina 1 di 2" at the bottom.
+ * Rows from the frame: LETTURA label at 149.6, rows from 173; ASPETTO label at 313, rows from 337. */
+static const SetItem SET[S_N] = {
+    { 0, 150, 173, "Lettura", "Obiettivo giornaliero" },
+    { 0, 0, 229, NULL, "Libri da leggere quest'anno" },
+    { 0, 313, 337, "Aspetto", "Carattere" },
+    { 0, 0, 393, NULL, "Dimensione" },
+    { 0, 0, 449, NULL, "Interlinea" },
+    { 0, 0, 505, NULL, "Margini" },
+    { 0, 0, 561, NULL, "Refresh completo" },
+    { 0, 0, 617, NULL, "Visualizzazione" },
+    { 1, 150, 173, "Libreria", "Ordina per" },
+    { 1, 0, 229, NULL, "Aggiorna l'elenco dei libri" },
+    { 1, 313, 337, "Carbonella", "Prova dei tasti" },
+    { 1, 0, 393, NULL, "Versione" },
+};
+
+static void set_value(App *a, int i, char *out, size_t n)
+{
+    out[0] = 0;
+    switch (i) {
+    case S_GOAL: snprintf(out, n, "%d minuti", a->goal_min); break;
+    case S_YEAR: snprintf(out, n, "%d", a->books_year); break;
+    case S_FONT: snprintf(out, n, "Literata"); break;
+    case S_SIZE: snprintf(out, n, "%d pt", a->lp.size); break;
+    case S_LINE: snprintf(out, n, "%d,%d", a->lp.line_pct / 100, a->lp.line_pct % 100 / 10); break;
+    case S_MARGIN: snprintf(out, n, "%s", MARGIN_NAMES[closest(MARGINS, 3, a->lp.margin_x)]); break;
+    case S_FLASH:
+        if (a->flash_every == 1)
+            snprintf(out, n, "ogni pagina");
+        else
+            snprintf(out, n, "ogni %d pagine", a->flash_every);
+        break;
+    case S_VIEW: snprintf(out, n, "Copertine"); break;
+    case S_SORT: snprintf(out, n, "%s", SORTS[a->sort]); break;
+    case S_VERSION: snprintf(out, n, "%s", CARBONELLA_VERSION); break;
+    default: break;
+    }
+}
+
+static void set_row(App *a, int i, int focus)
+{
+    char v[48];
+    set_value(a, i, v, sizeof v);
+    ui_menu_row(&a->cv, 32, SET[i].row_top, a->W - 64, SET[i].label, v,
+                i == S_RESCAN ? ICON_PLUS : i == S_VERSION ? ICON_NONE : ICON_ARROW, focus);
+}
+
+/* Change a setting by one step (dir +1 / -1). Returns 1 if the reading page must be laid out again. */
+static int set_change(App *a, int i, int dir)
+{
+    switch (i) {
+    case S_GOAL: a->goal_min = step(GOALS, NGOALS, a->goal_min, dir); break;
+    case S_YEAR: a->books_year = step(YEARS, NYEARS, a->books_year, dir); break;
+    case S_SIZE: a->lp.size = step(SIZES, NSIZES, a->lp.size, dir); break;
+    case S_LINE: a->lp.line_pct = step(LINES, NLINES, a->lp.line_pct, dir); break;
+    case S_MARGIN: a->lp.margin_x = step(MARGINS, 3, a->lp.margin_x, dir); break;
+    case S_FLASH: a->flash_every = step(FLASHES, NFLASHES, a->flash_every, dir); break;
+    case S_SORT: a->sort = (a->sort + (dir > 0 ? 1 : 2)) % 3; break;
+    default: return 0; /* Carattere and Visualizzazione have one choice for now */
+    }
+    save_prefs(a);
+    return i == S_SIZE || i == S_LINE || i == S_MARGIN;
+}
+
+static void settings_draw(App *a, int page, int sel)
+{
+    canvas_clear(&a->cv, G_CARTA);
+    home_header(a, NULL);
+    ui_title(&a->cv, 48, "Impostazioni");
+    for (int i = 0; i < S_N; i++) {
+        if (SET[i].page != page)
+            continue;
+        if (SET[i].group)
+            ui_group_label(&a->cv, 52, SET[i].group_top, SET[i].group);
+        set_row(a, i, i == sel);
+    }
+    char pg[32];
+    snprintf(pg, sizeof pg, "Pagina %d di 2", page + 1);
+    int tw = font_text_width(FACE_MONO, 16, pg);
+    font_draw_text(&a->cv, FACE_MONO, 16, (a->W - tw) / 2, ui_baseline(FACE_MONO, 16, a->H - 8 - 19.2f, 19.2f), pg,
+                   G_CENERE, 0);
+}
+
+/* The settings screen. Up/down move, centre and right go to the next value, left to the previous one,
+ * Back closes. Returns 1 to rescan the books, 2 to go back to the Kindle (timeout), 0 otherwise. */
+static int settings_run(App *a)
+{
+    int sel = 0, shown = -1, relaid = 0, result = 0;
+    for (;;) {
+        int page = SET[sel].page;
+        if (page != shown) {
+            settings_draw(a, page, sel);
+            full(a, shown < 0 ? REFRESH_FULL : REFRESH_PARTIAL);
+            shown = page;
+        }
+        int raw, old = sel;
+        Key k = wait_key(a, &raw);
+        if (k == K_NONE) { /* back from standby: the screen is already restored */
+            continue;
+        } else if (k == K_UP) {
+            sel = (sel + S_N - 1) % S_N;
+        } else if (k == K_DOWN) {
+            sel = (sel + 1) % S_N;
+        } else if (k == K_PREV) {
+            sel = page == 0 ? S_SORT : 0;
+        } else if (k == K_NEXT) {
+            sel = page == 0 ? S_SORT : 0;
+        } else if (k == K_SELECT || k == K_RIGHT || k == K_LEFT) {
+            if (sel == S_RESCAN && k == K_SELECT) {
+                result = 1;
+                break;
+            }
+            if (sel == S_KEYS && k == K_SELECT) {
+                key_test(a);
+                shown = -1;
+                continue;
+            }
+            relaid |= set_change(a, sel, k == K_LEFT ? -1 : 1);
+            if (sel == S_GOAL) { /* the bar in the header changes too */
+                settings_draw(a, page, sel);
+                full(a, REFRESH_PARTIAL);
+                continue;
+            }
+            set_row(a, sel, 1);
+            display_update(&a->cv, (Rect){ 32, SET[sel].row_top, a->W - 64, 56 }, REFRESH_PARTIAL);
+            continue;
+        } else if (k == K_BACK || k == K_MENU || k == K_HOME) {
+            break;
+        } else if (k == K_TIMEOUT || k == K_QUIT) {
+            result = 2;
+            break;
+        } else {
+            continue;
+        }
+        if (SET[sel].page == SET[old].page) {
+            set_row(a, old, 0);
+            set_row(a, sel, 1);
+            display_update(&a->cv, (Rect){ 32, SET[old].row_top, a->W - 64, 56 }, REFRESH_PARTIAL);
+            display_update(&a->cv, (Rect){ 32, SET[sel].row_top, a->W - 64, 56 }, REFRESH_PARTIAL);
+        }
+    }
+    if (relaid)
+        relayout(a);
+    return result;
+}
+
+/* "02 · Lettura Menù": the panel opens over the page, which stays visible above it (Simone, v0.3);
+ * the header shows the book title. Returns where to go after the menu, or -1 to keep reading. */
 static int reader_menu(App *a)
 {
     int sel = 0;
-    enum { M_TOC, M_SIZE, M_CLEAN, M_LIB, M_KINDLE, M_N };
+    enum { M_TOC, M_SIZE, M_SETTINGS, M_CLEAN, M_LIB, M_KINDLE, M_N };
     Row rows[M_N] = {
         { "Indice", "", ICON_ARROW },
         { "Dimensione carattere", "", ICON_NONE },
+        { "Impostazioni", "", ICON_ARROW },
         { "Pulisci lo schermo", "", ICON_NONE },
         { "Torna alla Home", "", ICON_ARROW },
         { "Torna al Kindle", "", ICON_ARROW },
     };
-    canvas_clear(&a->cv, G_CARTA);
-    ui_header(&a->cv, a->book->title, NULL, -1);
-    full(a, REFRESH_PARTIAL);
+    int redraw = 1;
     for (;;) {
+        if (redraw) { /* the page under the panel, with the title in the header */
+            draw_page(a);
+            ui_header(&a->cv, a->book->title, NULL, -1);
+            full(a, REFRESH_PARTIAL);
+            redraw = 0;
+        }
         snprintf(rows[M_SIZE].value, sizeof rows[M_SIZE].value, "%d pt", a->lp.size);
         int p, t;
         book_pages(a, &p, &t);
@@ -589,12 +797,24 @@ static int reader_menu(App *a)
         case -2: /* left/right on the size row */
             change_size(a, k == K_RIGHT ? 1 : -1);
             sel = M_SIZE;
+            redraw = 1;
             continue;
         case M_TOC: show_toc(a); return -1;
         case M_SIZE: /* centre: next size, after the biggest back to the smallest */
             change_size(a, size_index(a->lp.size) == NSIZES - 1 ? -(NSIZES - 1) : 1);
             sel = M_SIZE;
+            redraw = 1;
             continue;
+        case M_SETTINGS: {
+            int s = settings_run(a);
+            if (s == 2)
+                return GO_EXIT;
+            if (s == 1)
+                return GO_LIBRARY;
+            sel = M_SETTINGS;
+            redraw = 1;
+            continue;
+        }
         case M_CLEAN: return -1;
         case M_LIB: return GO_LIBRARY;
         case M_KINDLE: return GO_EXIT;
@@ -916,10 +1136,11 @@ static void empty_home(App *a)
 /* Home menu ("00 Home Menù"). Returns 1 to rescan, 2 to exit, 0 otherwise. */
 static int home_menu(App *a)
 {
-    enum { H_SORT, H_GOAL, H_RESCAN, H_KINDLE, H_N };
+    enum { H_SORT, H_GOAL, H_SETTINGS, H_RESCAN, H_KINDLE, H_N };
     Row rows[H_N] = {
         { "Ordina per", "", ICON_ARROW },
         { "Obiettivo giornaliero", "", ICON_ARROW },
+        { "Impostazioni", "", ICON_ARROW },
         { "Aggiorna l'elenco dei libri", "", ICON_PLUS },
         { "Torna al Kindle", "", ICON_ARROW },
     };
@@ -945,6 +1166,10 @@ static int home_menu(App *a)
             a->goal_min = GOALS[i % NGOALS];
             save_prefs(a);
             continue;
+        }
+        case H_SETTINGS: {
+            int r2 = settings_run(a);
+            return r2; /* 0: the Home is drawn again (order and goal may have changed) */
         }
         case H_RESCAN: return 1;
         case H_KINDLE: return 2;
@@ -1221,6 +1446,7 @@ int main(int argc, char **argv)
     a->idle_ms = idle_min > 0 ? idle_min * 60000 : -1;
     a->goal_min = settings_int(&a->cfg, "obiettivo_minuti", 30);
     a->sort = settings_int(&a->cfg, "ordina", 0);
+    a->books_year = settings_int(&a->cfg, "libri_anno", 12);
     if (a->sort < 0 || a->sort > 2)
         a->sort = 0;
 

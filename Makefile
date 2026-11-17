@@ -42,8 +42,8 @@ build/carbonella-sim: $(SRC) $(HDR) $(MINIZ)
 sim: build/carbonella-sim
 
 # A quick tour with the books of the Figma Home: move in the grid, Home menu, open a book, turn pages,
-# reader menu, bigger text, index, standby and wake up, back to the Home.
-PROVA_TASTI ?= R,D,D,M,D,B,U,U,L,S,N,N,M,D,R,B,M,S,D,S,B,Z,A,B
+# reader menu over the page, bigger text, settings, index, standby and wake up, back to the Home, settings from the Home.
+PROVA_TASTI ?= R,D,D,M,D,B,U,U,L,S,N,N,M,D,R,B,M,D,D,S,D,D,D,R,N,B,B,M,S,D,S,B,Z,A,B,M,D,D,S,D,R,B
 prova: build/carbonella-sim build/libri/prova.epub
 	rm -rf build/schermate build/base build/libreria && mkdir -p build/base/dati
 	cp -r pacchetto/carbonella/fonts pacchetto/carbonella/carbonella.conf build/base/

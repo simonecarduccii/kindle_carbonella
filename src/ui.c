@@ -249,6 +249,26 @@ static char *upper(const char *s)
     return o;
 }
 
+/* Group label of the settings ("LETTURA"): Plex Sans SemiBold 13 upper case, tracking 1.04 px, #222.
+ * We use Medium, the closest face we carry. 'top' is the top of its 16 px line. */
+void ui_group_label(Canvas *c, int x, float top, const char *label)
+{
+    char *u = upper(label);
+    int base = ui_baseline(FACE_SANS_MEDIUM, 13, top, 16);
+    float pen = x;
+    const unsigned char *s = (const unsigned char *)u;
+    size_t n = strlen(u), i = 0;
+    uint32_t prev = 0;
+    while (i < n) {
+        uint32_t cp;
+        i += utf8_decode(s + i, n - i, &cp);
+        font_draw(c, FACE_SANS_MEDIUM, 13, (int)(pen * 64), base, cp, G_GRAFITE);
+        pen += font_advance(FACE_SANS_MEDIUM, 13, prev, cp) / 64.0f + 1.04f;
+        prev = 0;
+    }
+    free(u);
+}
+
 /* ---------------------------------------------------------------- covers */
 
 enum {

@@ -2,6 +2,21 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Finché siamo a `0.x` tutto può cambiare.
 
+## v0.3.0 · 2026-11-17 · "Appunti di Simone"
+
+- **Sfondo bianco puro** ovunque (prima era il grigio "Carta" #EEE): sull'e-ink il bianco appare
+  comunque un po' grigio, ma il contrasto è il massimo possibile.
+- **Il menu di lettura si apre sopra la pagina**: il testo resta visibile sopra al pannello, con il
+  titolo del libro in alto. Cambiando la dimensione del carattere si vede subito la pagina nuova.
+- **Pagina Impostazioni** come nel frame Figma "04 · Impostazioni", dalla Home e dal menu di lettura:
+  - *Lettura*: obiettivo giornaliero, libri da leggere quest'anno;
+  - *Aspetto*: carattere (Literata), dimensione, interlinea (1,3–1,8), margini (stretti, medi, larghi),
+    refresh completo (ogni 1–20 pagine), visualizzazione (copertine);
+  - pagina 2: ordina per, aggiorna l'elenco dei libri, prova dei tasti, versione.
+  Su/giù per scegliere, centro o destra per il valore successivo, sinistra per il precedente,
+  Indietro per uscire. Tutto viene salvato in `dati/preferenze.conf`.
+- Il menu della Home ha la voce "Impostazioni"; le altre voci restano.
+
 ## v0.2.0 · 2026-11-17 · "Come in Figma"
 
 Tutte le schermate rifatte dal design Figma, con le stesse misure, gli stessi font e gli stessi grigi.

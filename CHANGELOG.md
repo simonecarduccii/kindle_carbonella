@@ -2,6 +2,18 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Dalla 1.0.0 le versioni MINORE aggiungono cose, le CORREZIONE sistemano.
 
+## v1.0.4 · 2026-11-17
+
+Le nuove schermate di Simone in Figma.
+
+- **Conferma prima di archiviare**: "Sei sicuro di voler archiviare?" con *Si* (nero) e *no*, come nel
+  frame "00 Home Menù Archivio". Destra/sinistra cambiano scelta, Indietro vale no.
+- **Archivio nelle Impostazioni** (pagina 2, gruppo ARCHIVIO sopra SISTEMA): *Mostra archivio* apre la
+  griglia dei libri archiviati; *Elimina archivio definitivamente* chiede conferma e cancella i file
+  dell'archivio. L'archivio non compare più tra le raccolte della Home.
+- Nell'archivio la voce *Archivia libro* diventa **Togli dall'archivio**: il libro torna nella Home.
+- **Copertine**: titolo più grande e autore più piccolo in tutti e sei i modelli (anche in Figma).
+
 ## v1.0.3 · 2026-11-17
 
 - **Standby leggero, risvegliabile con Home.** Prova sul Kindle: nello standby vero di powerd la

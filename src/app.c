@@ -413,6 +413,44 @@ static int popup_run(App *a, Row *rows, int n, int sel)
     }
 }
 
+/* "Sei sicuro di voler archiviare?" (frame "00 Home Menù Archivio", v1.0.4): the small panel, 424 px
+ * wide, the question centred in a row of 56 px, then "Si" and "no" side by side (189 x 56 each, the
+ * focused one black). Left/right move, centre chooses, Back = no. Returns 1 for Si. */
+static int confirm_popup(App *a, const char *question)
+{
+    for (size_t i = 0; i < (size_t)a->W * a->H; i++) /* the screen behind at 30% */
+        a->cv.px[i] = (uint8_t)(a->cv.px[i] * 30 / 100);
+    int w = 424, h = 167, x = (a->W - w) / 2, y = (a->H - h) / 2;
+    canvas_fill(&a->cv, x, y, w, h, G_CARTA);
+    canvas_frame(&a->cv, x - 1, y - 1, w + 2, h + 2, 1, G_GRAFITE);
+    int tw = font_text_width(FACE_SANS_MEDIUM, 20, question);
+    font_draw_text(&a->cv, FACE_SANS_MEDIUM, 20, x + (w - tw) / 2, ui_baseline(FACE_SANS_MEDIUM, 20, y + 31, 25),
+                   question, G_NERO, w - 40);
+    int sel = 0, first = 1;
+    for (;;) {
+        static const char *L[2] = { "Si", "no" };
+        for (int i = 0; i < 2; i++) {
+            int bx = x + 21 + i * 194, by = y + 90;
+            canvas_fill(&a->cv, bx, by, 189, 56, i == sel ? G_NERO : G_CARTA);
+            int lw = font_text_width(FACE_SANS_MEDIUM, 20, L[i]);
+            font_draw_text(&a->cv, FACE_SANS_MEDIUM, 20, bx + (189 - lw) / 2,
+                           ui_baseline(FACE_SANS_MEDIUM, 20, by + 15, 25), L[i], i == sel ? G_CARTA : G_NERO, 0);
+        }
+        if (first)
+            full(a, REFRESH_PARTIAL);
+        else
+            display_update(&a->cv, (Rect){ x, y + 90, w, 56 }, REFRESH_PARTIAL);
+        first = 0;
+        Key k = wait_key(a, NULL);
+        if (k == K_LEFT || k == K_RIGHT || k == K_UP || k == K_DOWN)
+            sel = !sel;
+        else if (k == K_SELECT)
+            return sel == 0;
+        else if (k == K_BACK || k == K_MENU || k == K_HOME || k == K_TIMEOUT || k == K_QUIT)
+            return 0;
+    }
+}
+
 /* ----------------------------------------------------------- list screen */
 
 typedef struct {
@@ -739,7 +777,8 @@ static void key_test(App *a);
 
 enum {
     S_GOALS, S_GOAL, S_YEAR, S_FONT, S_SIZE, S_LINE, S_MARGIN, S_VIEW, /* page 1, as in Figma */
-    S_NAME, S_WIFI, S_DATE, S_STANDBY, S_INFO, S_KINDLE,               /* page 2 */
+    S_SHOWARCH, S_DELARCH,                                             /* page 2, v1.0.4 */
+    S_NAME, S_WIFI, S_DATE, S_STANDBY, S_INFO, S_KINDLE,
     S_N
 };
 
@@ -751,7 +790,8 @@ typedef struct {
 
 /* "04 · Impostazioni": header, title, groups (label + rows of 56 px), "Pagina 1 di 2" at the bottom.
  * Positions from the two frames: page 1 LETTURA label at 150, rows from 174; ASPETTO label at 370,
- * rows from 394. Page 2 SISTEMA label at 142, rows from 166. Texts exactly as in the frames. */
+ * rows from 394. Page 2 ARCHIVIO label at 142, rows from 166; SISTEMA label at 298, rows from 322.
+ * Texts exactly as in the frames. */
 static const SetItem SET[S_N] = {
     { 0, 150, 174, "Lettura", "Guarda gli obiettivi", 0 }, /* texts verbatim from Figma */
     { 0, 0, 230, NULL, "Obiettivo giornaliero", 1 },
@@ -761,12 +801,14 @@ static const SetItem SET[S_N] = {
     { 0, 0, 506, NULL, "Interlinea", 1 },
     { 0, 0, 562, NULL, "Margini", 1 },
     { 0, 0, 618, NULL, "Visualizzazione", 1 },
-    { 1, 142, 166, "Sistema", "Nome dispositivo", 0 },
-    { 1, 0, 222, NULL, "Wi-Fi", 0 },
-    { 1, 0, 278, NULL, "Data e ora", 0 },
-    { 1, 0, 334, NULL, "Standby automatico dopo", 1 }, /* v0.6 */
-    { 1, 0, 390, NULL, "Informazioni", 0 },
-    { 1, 0, 446, NULL, "Torna al kindle", 0 },
+    { 1, 142, 166, "Archivio", "Mostra archivio", 0 }, /* v1.0.4 */
+    { 1, 0, 222, NULL, "Elimina archivio definitivamente", 0 },
+    { 1, 298, 322, "Sistema", "Nome dispositivo", 0 },
+    { 1, 0, 378, NULL, "Wi-Fi", 0 },
+    { 1, 0, 434, NULL, "Data e ora", 0 },
+    { 1, 0, 490, NULL, "Standby automatico dopo", 1 }, /* v0.6 */
+    { 1, 0, 546, NULL, "Informazioni", 0 },
+    { 1, 0, 602, NULL, "Torna al kindle", 0 },
 };
 
 /* Wi-Fi of the Kindle: -1 unknown (simulator), 0 off, 1 on. */
@@ -883,8 +925,10 @@ static void settings_draw(App *a, int page, int sel)
 }
 
 /* The settings screen. Up/down move, centre and right go to the next value, left to the previous one,
- * Back closes. Returns 1 to rescan the books, 2 to go back to the Kindle (timeout), 0 otherwise. */
+ * Back closes. Returns 1 to rescan the books, 2 to go back to the Kindle (timeout), 3 to show the
+ * archive, 0 otherwise. */
 static int goals_run(App *a);
+static int delete_archive(App *a);
 
 static int settings_run(App *a)
 {
@@ -905,13 +949,29 @@ static int settings_run(App *a)
         } else if (k == K_DOWN) {
             sel = (sel + 1) % S_N;
         } else if (k == K_PREV) {
-            sel = page == 0 ? S_NAME : 0;
+            sel = page == 0 ? S_SHOWARCH : 0;
         } else if (k == K_NEXT) {
-            sel = page == 0 ? S_NAME : 0;
+            sel = page == 0 ? S_SHOWARCH : 0;
         } else if (k == K_SELECT || k == K_RIGHT || k == K_LEFT) {
             if (sel == S_KINDLE && k == K_SELECT) {
                 result = 2;
                 break;
+            }
+            if (sel == S_SHOWARCH && (k == K_SELECT || k == K_RIGHT)) {
+                result = 3; /* the grid of the archive opens from the Home */
+                break;
+            }
+            if (sel == S_DELARCH && (k == K_SELECT || k == K_RIGHT)) {
+                if (confirm_popup(a, "Sei sicuro di voler eliminare l'archivio?")) {
+                    int nd = delete_archive(a);
+                    char t[64];
+                    snprintf(t, sizeof t, nd == 1 ? "%d libro eliminato" : "%d libri eliminati", nd);
+                    message(a, "Archivio eliminato", t, REFRESH_PARTIAL);
+                    input_wait(2000, NULL);
+                    result = 1;
+                }
+                shown = -1;
+                continue;
             }
             if (sel == S_GOALS) {
                 if (k != K_SELECT && k != K_RIGHT)
@@ -1895,6 +1955,8 @@ static void pile_add(Cell *c, LibEntry *e)
 /* Cells of a view: folder NULL and !read_view = Home; read_view = books already read; else that folder. */
 static int collections(App *a, char names[][128], int max);
 
+#define ARCHIVE_NAME "Archivio" /* "Archivia libro" moves books here; shown only from the settings (v1.0.4) */
+
 static int build_cells(App *a, const char *folder, int read_view, Cell **out)
 {
     Cell *cells = xcalloc(a->lib.n + 2 + 64, sizeof(Cell)); /* + up to 64 empty collections */
@@ -1906,6 +1968,13 @@ static int build_cells(App *a, const char *folder, int read_view, Cell **out)
         int done = e->percent >= 100;
         char f[128];
         folder_of(a, e, f, sizeof f);
+        if (!(folder && strcmp(folder, ARCHIVE_NAME) == 0) && strcmp(f, ARCHIVE_NAME) == 0)
+            continue; /* archived: out of the Home and of the books read */
+        if (folder && strcmp(folder, ARCHIVE_NAME) == 0) { /* "Mostra archivio": read ones too */
+            if (strcmp(f, ARCHIVE_NAME) == 0)
+                cells[n++] = (Cell){ .kind = CELL_BOOK, .e = e, .recent = recent_of(e) };
+            continue;
+        }
         if (read_view) {
             if (done)
                 cells[n++] = (Cell){ .kind = CELL_BOOK, .e = e, .recent = recent_of(e) };
@@ -2086,7 +2155,7 @@ static int collections(App *a, char names[][128], int max)
     for (int i = 0; i < a->lib.n; i++) {
         char f[128];
         folder_of(a, &a->lib.e[i], f, sizeof f);
-        if (!*f)
+        if (!*f || strcmp(f, ARCHIVE_NAME) == 0)
             continue;
         int j;
         for (j = 0; j < n && strcmp(names[j], f) != 0; j++)
@@ -2101,7 +2170,7 @@ static int collections(App *a, char names[][128], int max)
             continue;
         char mark[1024];
         snprintf(mark, sizeof mark, "%s/%s/" COLL_MARK, a->books, de->d_name);
-        if (access(mark, F_OK) != 0)
+        if (access(mark, F_OK) != 0 || strcmp(de->d_name, ARCHIVE_NAME) == 0)
             continue;
         int j;
         for (j = 0; j < n && strcmp(names[j], de->d_name) != 0; j++)
@@ -2238,7 +2307,6 @@ static int move_books(App *a, LibEntry *focus)
 
 /* "Archivia libro": the focused book goes into the "Archivio" collection (created if missing), so it
  * leaves the Home but stays on the Kindle. It comes back with "Aggiungi alla raccolta". */
-#define ARCHIVE_NAME "Archivio"
 static int archive_book(App *a, LibEntry *e)
 {
     char dir[1024], mark[1100];
@@ -2277,6 +2345,58 @@ static int archive_book(App *a, LibEntry *e)
     return 1;
 }
 
+/* "Togli dall'archivio": back to the books folder, so the book is in the Home again. */
+static int unarchive_book(App *a, LibEntry *e)
+{
+    const char *base = strrchr(e->path, '/');
+    base = base ? base + 1 : e->path;
+    char np[1200];
+    snprintf(np, sizeof np, "%s/%s", a->books, base);
+    if (access(np, F_OK) == 0) {
+        message(a, "C'è già un file con questo nome", base, REFRESH_PARTIAL);
+        input_wait(4000, NULL);
+        return 0;
+    }
+    if (rename(e->path, np) != 0) {
+        message(a, "Non riesco a togliere il libro dall'archivio", strerror(errno), REFRESH_PARTIAL);
+        input_wait(4000, NULL);
+        return 0;
+    }
+    log_msg("unarchived %s -> %s", e->path, np);
+    free(e->path);
+    e->path = xstrdup(np);
+    library_save_positions(&a->lib, a->data);
+    message(a, "Libro tolto dall'archivio", e->title, REFRESH_PARTIAL);
+    input_wait(1500, NULL);
+    return 1;
+}
+
+/* "Elimina archivio definitivamente": deletes the book files in the archive folder (only files, only
+ * there). Returns how many. */
+static int delete_archive(App *a)
+{
+    char dir[1024];
+    snprintf(dir, sizeof dir, "%s/" ARCHIVE_NAME, a->books);
+    DIR *d = opendir(dir);
+    if (!d)
+        return 0;
+    struct dirent *de;
+    int n = 0;
+    while ((de = readdir(d))) {
+        if (de->d_name[0] == '.')
+            continue;
+        char p[1300];
+        struct stat st;
+        snprintf(p, sizeof p, "%s/%s", dir, de->d_name);
+        if (stat(p, &st) == 0 && S_ISREG(st.st_mode) && unlink(p) == 0) {
+            log_msg("deleted %s", p);
+            n++;
+        }
+    }
+    closedir(d);
+    return n;
+}
+
 static void sort_step(App *a, int dir) { a->sort = (a->sort + (dir > 0 ? 1 : 2)) % 3; }
 
 static void goal_step(App *a, int dir)
@@ -2302,8 +2422,9 @@ static void mark_finished(App *a, LibEntry *e)
 /* Home menu ("00 Home Menù", the instance in Simone's frame): texts, values and icons exactly as in
  * Figma. 'focus' is the book with the focus in the grid (NULL on a collection).
  * Returns 1 to read the library again, 2 to exit, 0 otherwise. */
-static int home_menu(App *a, LibEntry *focus)
+static int home_menu(App *a, LibEntry *focus, const char *folder)
 {
+    int in_archive = folder && strcmp(folder, ARCHIVE_NAME) == 0;
     enum { H_NEWCOLL, H_SORT, H_GOAL, H_ADDCOLL, H_FINISHED, H_ARCHIVE, H_SETTINGS, H_N };
     Row rows[H_N] = {
         { "Crea nuova raccolta", "", ICON_PLUS },
@@ -2314,6 +2435,8 @@ static int home_menu(App *a, LibEntry *focus)
         { "Archivia libro", "", ICON_ARROW },
         { "Tutte le impostazioni", "", ICON_ARROW },
     };
+    if (in_archive) /* Simone: in the archive "Archivia libro" becomes "Togli dall'archivio" */
+        rows[H_ARCHIVE].label = "Togli dall’archivio";
     char ver[48];
     snprintf(ver, sizeof ver, "Carbonella %s", CARBONELLA_VERSION);
     int sel = 0, changed = 0;
@@ -2343,12 +2466,20 @@ static int home_menu(App *a, LibEntry *focus)
             input_wait(3000, NULL);
             return changed;
         case H_ARCHIVE:
-            if (focus)
+            if (focus && in_archive)
+                return unarchive_book(a, focus) ? 1 : changed;
+            if (focus) {
+                if (!confirm_popup(a, "Sei sicuro di voler archiviare?"))
+                    return changed;
                 return archive_book(a, focus) ? 1 : changed;
+            }
             message(a, "Scegli prima un libro", "Metti il riquadro su una copertina e riapri il menu.", REFRESH_PARTIAL);
             input_wait(3000, NULL);
             return changed;
-        case H_SETTINGS: return settings_run(a) == 2 ? 2 : changed;
+        case H_SETTINGS: {
+            int r = settings_run(a);
+            return r == 2 ? 2 : r == 3 ? 3 : r == 1 ? 1 : changed;
+        }
         case PANEL_END: return k == K_HOME ? changed : 2;
         default: return changed;
         }
@@ -2397,7 +2528,15 @@ static int grid_view(App *a, const char *folder, int read_view, LibEntry *focus)
                 break;
             }
             if (k == K_MENU) {
-                int m = home_menu(a, NULL);
+                int m = home_menu(a, NULL, NULL);
+                if (m == 3) {
+                    int r = grid_view(a, ARCHIVE_NAME, 0, NULL);
+                    if (r != -1) {
+                        result = r;
+                        break;
+                    }
+                    continue;
+                }
                 if (m) {
                     result = m == 1 ? GO_LIBRARY : GO_EXIT;
                     break;
@@ -2450,7 +2589,16 @@ static int grid_view(App *a, const char *folder, int read_view, LibEntry *focus)
             redraw = 1;
             continue;
         case K_MENU: {
-            int m = home_menu(a, cells[sel].kind == CELL_BOOK ? cells[sel].e : NULL);
+            int m = home_menu(a, cells[sel].kind == CELL_BOOK ? cells[sel].e : NULL, folder);
+            if (m == 3) { /* "Mostra archivio" */
+                int r = grid_view(a, ARCHIVE_NAME, 0, NULL);
+                if (r != -1) {
+                    result = r;
+                    goto out;
+                }
+                result = GO_LIBRARY; /* books may have left the archive: read the library again */
+                goto out;
+            }
             if (m) {
                 result = m == 1 ? GO_LIBRARY : GO_EXIT;
                 goto out;

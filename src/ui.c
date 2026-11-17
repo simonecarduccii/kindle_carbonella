@@ -644,10 +644,10 @@ static float between(float top, float bottom, float h)
 static void model_sellerio(const Model *m, const char *t, const char *au, const char *pub, int ours)
 {
     mrect(m, 0, 0, 600, 800, G_GRAFITE);                                                 /* #222 */
-    int na = model_text(m, FACE_BODONI, 36, 0.12f, 1.3f, 52, 48, 496, 0, 2, au, 0, G_CARTA, 0);
-    float ttop = 48 + lines_h(36, 1.3f, na) + 12;
-    int nt = model_text(m, FACE_BODONI, 48, 0, 1.12f, 52, ttop, 496, 0, 3, t, 0, G_CARTA, 0);
-    float head = ttop + lines_h(48, 1.12f, nt), foot = 740;
+    int na = model_text(m, FACE_BODONI, 28, 0.12f, 1.3f, 52, 48, 496, 0, 2, au, 0, G_CARTA, 0);
+    float ttop = 48 + lines_h(28, 1.3f, na) + 12;
+    int nt = model_text(m, FACE_BODONI, 56, 0, 1.12f, 52, ttop, 496, 0, 3, t, 0, G_CARTA, 0);
+    float head = ttop + lines_h(56, 1.12f, nt), foot = 740;
     float ih = 400;
     if (foot - head - 40 < ih)
         ih = foot - head - 40;
@@ -662,10 +662,10 @@ static void model_adelphi(const Model *m, const char *t, const char *au, const c
     mrect(m, 22, 22, 556, 77, G_NERO); /* band with the series */
     model_text(m, FACE_BASK, 30, 0.12f, 1.23f, 38, 42, 524, 1, 1, ours ? "Gli Adelphi" : pub, 1, G_CARTA, 0);
     mrect(m, 22, 99, 556, 679, G_LEGGERO); /* #CCC panel */
-    int na = model_text(m, FACE_BASK_ITALIC, 34, 0.10f, 1.3f, 52, 130, 496, 1, 2, au, 0, G_NERO, 0);
-    float ttop = 130 + lines_h(34, 1.3f, na) + 20;
-    int nt = model_text(m, FACE_BASK_ITALIC, 52, 0, 1.18f, 52, ttop, 496, 1, 3, t, 0, G_NERO, 0);
-    float head = ttop + lines_h(52, 1.18f, nt) + 20, ih = 320;
+    int na = model_text(m, FACE_BASK_ITALIC, 28, 0.10f, 1.3f, 52, 130, 496, 1, 2, au, 0, G_NERO, 0);
+    float ttop = 130 + lines_h(28, 1.3f, na) + 20;
+    int nt = model_text(m, FACE_BASK_ITALIC, 60, 0, 1.18f, 52, ttop, 496, 1, 3, t, 0, G_NERO, 0);
+    float head = ttop + lines_h(60, 1.18f, nt) + 20, ih = 320;
     if (712 - head < ih)
         ih = 712 - head;
     if (ih > 40)
@@ -675,10 +675,10 @@ static void model_adelphi(const Model *m, const char *t, const char *au, const c
 static void model_einaudi(const Model *m, const char *t, const char *au, const char *pub, int ours)
 {
     mrect(m, 0, 0, 600, 800, G_VELO);
-    int na = model_text(m, FACE_MONO_BOLD, 36, 0.10f, 1.3f, 42, 42, 516, 1, 2, au, 1, G_NERO, 0);
-    float ttop = 42 + lines_h(36, 1.3f, na) + 16;
-    int nt = model_text(m, FACE_MONO_BOLD, 38, 0, 1.18f, 42, ttop, 516, 1, 3, t, 1, G_GRAFITE, 0);
-    float head = ttop + lines_h(38, 1.18f, nt), foot = 760, ih = 456;
+    int na = model_text(m, FACE_MONO_BOLD, 28, 0.10f, 1.3f, 42, 42, 516, 1, 2, au, 1, G_NERO, 0);
+    float ttop = 42 + lines_h(28, 1.3f, na) + 16;
+    int nt = model_text(m, FACE_MONO_BOLD, 46, 0, 1.18f, 42, ttop, 516, 1, 3, t, 1, G_GRAFITE, 0);
+    float head = ttop + lines_h(46, 1.18f, nt), foot = 760, ih = 456;
     if (foot - head - 40 < ih)
         ih = foot - head - 40;
     if (ih > 40)
@@ -690,9 +690,9 @@ static void model_feltrinelli(const Model *m, const char *t, const char *au, con
 {
     mrect(m, 0, 0, 600, 800, G_SMOG);      /* #666 at the top edge */
     mrect(m, 0, 29, 600, 771, G_LEGGERO);  /* #CCC panel */
-    int na = model_text(m, FACE_MONO_BOLD, 38, 0.10f, 1.3f, 82, 0, 466, 0, 2, au, 1, G_NERO, 1);
-    int nt = model_text(m, FACE_MONO_BOLD, 40, 0, 1.18f, 82, 0, 466, 0, 2, t, 0, G_GRAFITE, 1);
-    float nh = lines_h(38, 1.3f, na) + 4 + lines_h(40, 1.18f, nt);
+    int na = model_text(m, FACE_MONO_BOLD, 30, 0.10f, 1.3f, 82, 0, 466, 0, 2, au, 1, G_NERO, 1);
+    int nt = model_text(m, FACE_MONO_BOLD, 48, 0, 1.18f, 82, 0, 466, 0, 2, t, 0, G_GRAFITE, 1);
+    float nh = lines_h(30, 1.3f, na) + 4 + lines_h(48, 1.18f, nt);
     /* illustration from 73 (square since v1.0.2, as in Simone's reference), then name and title, then the
      * logo at 708: equal gaps */
     float ih = 496, gap = (708 - 73 - ih - nh) / 2;
@@ -703,8 +703,8 @@ static void model_feltrinelli(const Model *m, const char *t, const char *au, con
     if (ih > 40)
         illustration(m, 52, 73, 496, ih, G_FUMO); /* #AAA */
     float ntop = 73 + ih + gap;
-    model_text(m, FACE_MONO_BOLD, 38, 0.10f, 1.3f, 82, ntop, 466, 0, 2, au, 1, G_NERO, 0);
-    model_text(m, FACE_MONO_BOLD, 40, 0, 1.18f, 82, ntop + lines_h(38, 1.3f, na) + 4, 466, 0, 2, t, 0, G_GRAFITE, 0);
+    model_text(m, FACE_MONO_BOLD, 30, 0.10f, 1.3f, 82, ntop, 466, 0, 2, au, 1, G_NERO, 0);
+    model_text(m, FACE_MONO_BOLD, 48, 0, 1.18f, 82, ntop + lines_h(30, 1.3f, na) + 4, 466, 0, 2, t, 0, G_GRAFITE, 0);
     float tri[6] = { m->ox + 52 * m->s, m->oy + 735 * m->s, m->ox + 77 * m->s, m->oy + 710 * m->s,
                      m->ox + 77 * m->s, m->oy + 760 * m->s };
     canvas_polygon(m->c, tri, 3, mink(m, G_NERO));
@@ -722,8 +722,8 @@ static void model_bompiani(const Model *m, const char *t, const char *au, const 
     mrect(m, 4, 4, 592, 792, G_CARTA);     /* white, 4 px #BBB outline */
     illustration(m, 4, 194, 592, 226, G_CENERE); /* "Illustrazione" band, #666 */
     mdisc(m, 300, 416, 38, 38); /* #D9D9D9 */
-    model_text(m, FACE_BASK, 36, 0.10f, 1.3f, 54, 70, 492, 1, 2, au, 1, G_NERO, 0);
-    model_text(m, FACE_BASK, 44, 0, 1.18f, 54, 494, 492, 1, 3, t, 0, G_GRAFITE, 0);
+    model_text(m, FACE_BASK, 28, 0.10f, 1.3f, 54, 70, 492, 1, 2, au, 1, G_NERO, 0);
+    model_text(m, FACE_BASK, 52, 0, 1.18f, 54, 494, 492, 1, 3, t, 0, G_GRAFITE, 0);
     model_text(m, FACE_BASK, 16, 0.10f, 1.25f, 54, 726, 492, 1, 1, ours ? "Bompiani" : pub, 1, G_NERO, 0);
 }
 
@@ -738,10 +738,10 @@ static void model_mondadori(const Model *m, const char *t, const char *au, const
         model_text(m, FACE_MONO_BOLD, 16, 0.09f, 1.3f, 100, 38, 477, 0, 1, "Oscar", 1, G_NERO, 0);
         model_text(m, FACE_MONO_BOLD, 16, 0.09f, 1.3f, 100, 59, 477, 0, 1, "Libri", 1, G_NERO, 0);
     }
-    int na = model_text(m, FACE_BASK, 32, 0.07f, 1.3f, 35, 173, 530, 0, 2, au, 0, G_NERO, 0);
-    float ttop = 173 + lines_h(32, 1.3f, na) + 10;
-    int nt = model_text(m, FACE_BASK, 40, 0.07f, 1.3f, 35, ttop, 530, 0, 3, t, 0, G_NERO, 0);
-    float ill_top = 376, below = ttop + lines_h(40, 1.3f, nt) + 30;
+    int na = model_text(m, FACE_BASK, 26, 0.07f, 1.3f, 35, 173, 530, 0, 2, au, 0, G_NERO, 0);
+    float ttop = 173 + lines_h(26, 1.3f, na) + 10;
+    int nt = model_text(m, FACE_BASK, 48, 0.07f, 1.3f, 35, ttop, 530, 0, 3, t, 0, G_NERO, 0);
+    float ill_top = 376, below = ttop + lines_h(48, 1.3f, nt) + 30;
     if (below > ill_top)
         ill_top = below;
     if (684 - ill_top > 40)

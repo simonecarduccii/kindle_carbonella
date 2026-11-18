@@ -1,6 +1,6 @@
 # Evoluzione di Carbonella
 
-Il riassunto di tutto il percorso, dal Kindle appena sbloccato alla v1.1.0. I dettagli di ogni passo
+Il riassunto di tutto il percorso, dal Kindle appena sbloccato alla v1.2.0. I dettagli di ogni passo
 sono nei file del diario linkati qui sotto. Le ore sono in UTC e vengono dai commit.
 
 La stessa evoluzione è anche in Figma, nella pagina **Evoluzione**: lì ci sono le copie congelate delle
@@ -31,6 +31,7 @@ schermate di ogni passo.
 | 17 nov 11:35–11:56 | **v1.0.2–v1.0.5**: titoli e autori puliti, standby leggero, Feltrinelli nuovo, conferma e gruppo ARCHIVIO, sottolineature | [v100-carbonella](2026-11-17-v100-carbonella.md#v102v105-11351156-utc) |
 | 17 nov 11:57 | **v1.0.6**: menu della Home nel nuovo ordine di Figma | [v100-carbonella](2026-11-17-v100-carbonella.md#v106-1157-utc) |
 | 17 nov 12:05–12:40 | **v1.1.0 "Faldoni e Obiettivi"**: raccolte come due faldoni, nuova schermata Obiettivi | [v110-faldoni-obiettivi](2026-11-17-v110-faldoni-obiettivi.md) |
+| 17 nov 12:39 – 18 nov 17:20 | **v1.2.0 "Ricevi libri"**: pagine del cartaceo, Ricevi libri con QR, Wi-Fi, evidenziare, nuovo menu di lettura, nuova tastiera, Cerca un libro | [v120-ricevi-libri](2026-11-18-v120-ricevi-libri.md) |
 
 ## Cosa abbiamo imparato
 
@@ -72,7 +73,7 @@ carbonella tutto ciò che è diventato superfluo", "ti ho aggiunto anche 4 refer
 ## Pacchetti e versioni
 
 - Ogni versione ha il suo pacchetto `carbonella-vX.Y.Z.zip` nella cartella *rilasci* del progetto (dalla
-  0.1.0 alla 1.1.0). Gli zip di 0.6.1, 0.6.2, 0.6.3 e 1.0.2 non erano mai stati salvati e sono stati
+  0.1.0 alla 1.2.0). Gli zip di 0.6.1, 0.6.2, 0.6.3 e 1.0.2 non erano mai stati salvati e sono stati
   ricostruiti dai loro commit il 17 nov.
 - Ogni versione avrà anche un'etichetta git `vX.Y.Z` sul commit che la porta (preparate il 17 nov, da pubblicare dal Mac).
 - Dal 17 nov 12:02 le versioni le fa un solo thread, "Rilasciare e documentare Carbonella", e solo quando

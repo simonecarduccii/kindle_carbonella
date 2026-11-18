@@ -2,6 +2,46 @@
 
 Le versioni seguono lo schema `MAGGIORE.MINORE.CORREZIONE`. Dalla 1.0.0 le versioni MINORE aggiungono cose, le CORREZIONE sistemano.
 
+## v1.2.0 · 2026-11-18 · "Ricevi libri"
+
+Il lavoro di front end, back end e design del 17 pomeriggio e del 18 novembre.
+
+**Libri e pagine**
+- **Pagine del cartaceo**: sulla Home sotto ogni libro c'è il numero di pagine dell'edizione stampata
+  (dentro il libro restano le pagine a schermo). Vengono dalla lista delle pagine nell'EPUB, dalla tabella
+  `pagine_carta.tsv` (cercate a mano nei cataloghi, per esempio *1984* = 321) o dalle correzioni di Simone.
+  Nel menu di lettura la voce **Pagine del cartaceo** apre "‹ 158 ›" per scriverle a mano; si salvano in
+  `dati/pagine_carta.tsv`.
+- **Cerca un libro** dalla Home con il tasto Tastiera: titolo o autore, risultati come in Figma.
+- **Ricevi libri** (menu della Home): Carbonella accende il Wi-Fi e mostra un QR code. Il telefono lo
+  inquadra e manda gli EPUB/TXT al Kindle. Funziona anche sul cavo USB (USBNetwork). Il server esiste solo
+  mentre la schermata è aperta, con un codice casuale nell'indirizzo; accetta solo `.epub` e `.txt`.
+
+**Lettura**
+- **Evidenziare**: nel menu *Inizia a evidenziare* mostra un cursore che si sposta con il pad; si sceglie
+  l'inizio e la fine. Le evidenziazioni restano sottolineate e la voce *Evidenziazioni* le elenca
+  (`dati/evidenziazioni.tsv`).
+- **Nuovo menu di lettura** come in Figma: Aggiungi segnalibro, Inizia a evidenziare, Cerca nel libro,
+  Dimensione carattere, Segnalibri, Evidenziazioni, Pagine del cartaceo. *Vai a pagina…* e *Indice* escono
+  dal menu.
+- **Capitoli con il pad**: destra e sinistra durante la lettura vanno al capitolo dopo e prima.
+- **Niente standby durante la lettura**: con un libro aperto lo standby automatico non parte (resta una
+  sicurezza dopo 30 minuti senza tasti).
+- **Tempo di lettura più onesto**: conta fino all'ultimo giro di pagina più al massimo 5 minuti.
+
+**Wi-Fi e tastiera**
+- **Wi-Fi** nelle Impostazioni (pagina 2, gruppo SISTEMA): elenco delle reti con segnale e lucchetto,
+  password, ricollegamento alle reti salvate, *Spegni wifi*. Icona del Wi-Fi nell'intestazione quando è acceso.
+- **Nuova tastiera** comune a tutte le schermate, sempre in basso: maiuscole, blocco maiuscole e simboli.
+
+**Schermate e copertine**
+- **Impostazioni, pagina 2**: ARCHIVIO (Mostra archivio, Elimina archivio definitivamente) e SISTEMA (Nome
+  dispositivo, Wi-Fi, **Mostra percentuale batteria**). *Mostra sottolineature* esce.
+- **Obiettivi** allineati al nuovo frame di Figma; l'obiettivo annuale si cambia di un libro alla volta.
+- **Batteria**: fulmine quando è in carica (non a batteria piena).
+- **Avviso obiettivo** di 5 secondi.
+- **Copertine Feltrinelli e Mondadori** ridisegnate come i nuovi modelli di Simone.
+
 ## v1.1.0 · 2026-11-17 · "Faldoni e Obiettivi"
 
 Due schermate ridisegnate come i nuovi frame di Simone in Figma.

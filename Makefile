@@ -18,7 +18,7 @@ ZIG ?= zig
 TARGET ?= arm-linux-musleabi
 CC_HOST ?= cc
 
-SRC := src/app.c src/canvas.c src/display.c src/epub.c src/font.c src/input.c src/layout.c src/library.c src/ui.c src/util.c src/qr.c src/ricevi.c third_party/qrcodegen/qrcodegen.c
+SRC := src/app.c src/canvas.c src/display.c src/epub.c src/font.c src/input.c src/layout.c src/library.c src/ui.c src/util.c src/qr.c src/ricevi.c src/wifi.c third_party/qrcodegen/qrcodegen.c
 HDR := src/carbonella.h
 MINIZ := third_party/miniz/miniz.c
 DEFS := -D_GNU_SOURCE -DMINIZ_NO_DEFLATE_APIS -DMINIZ_NO_ZLIB_APIS -DMINIZ_NO_TIME

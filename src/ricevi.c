@@ -302,7 +302,7 @@ int rx_start(const char *books_dir, const char *device_name)
 
     int en = wifi_enabled();
     if (en == 0) {
-        if (run("lipc-set-prop com.lab126.cmd wirelessEnable 1") == 0 && wifi_enabled() == 1) {
+        if (wifi_radio_on() == 0 && wifi_enabled() == 1) {
             R.wifi_turned_on = 1;
         } else {
             /* with the USB cable (USBNetwork) the Mac can still send books: go on without Wi-Fi */

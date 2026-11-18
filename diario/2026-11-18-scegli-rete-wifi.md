@@ -1,6 +1,6 @@
 # 18 novembre 2026 · Scegliere il Wi-Fi dentro "Ricevi libri" (Figma)
 
-Tempo: circa 35 minuti (thread design).
+Tempo: circa 60 minuti (thread design).
 
 ## Richiesta
 
@@ -17,8 +17,9 @@ Testi da usare parola per parola:
 **5 · scegli la rete**
 - Titolo: `Scegli la rete Wi-Fi`
 - Testo: `Il Kindle non è collegato. Scegli la rete da usare per ricevere i libri.`
-- Righe (componente `Rete Wi-Fi`, Normale/Focus): nome della rete, lucchetto se protetta, segnale
-  (`Segnale Wi-Fi`: Forte / Medio / Debole). Esempi: Casa, Casa_5G, Ospiti, TIM-38492011.
+- Righe: la riga Wi-Fi di Simone (`Voce menu`, Stato `Wifi` / `Wifi Focus`): icona del segnale a sinistra
+  (`Segnale Wi-Fi`: Forte / Medio / Debole), nome della rete, lucchetto a destra se protetta.
+  Esempi: Casa, Casa_5G, Ospiti, TIM-38492011.
 - Ultima riga: `Cerca di nuovo` con `›`.
 - Piede: `centro per collegarti, indietro per uscire`
 
@@ -28,24 +29,43 @@ Testi da usare parola per parola:
 
 **7 · password** (solo per reti con lucchetto)
 - Titolo: `Password`, a destra il nome della rete in Cenere G6 (16 px).
-- Campo 536×56 a y 128 (come la tastiera già nel codice), sotto: `Scrivi la password della rete.`
-- `Tastiera password` a y 216: tasti 50×56, spazio 4, righe ogni 64 px.
-  Righe: `1234567890` / `qwertyuiop` / `asdfghjkl'` / `zxcvbnm,.-` / `Aa` `#+=` `Spazio` `Cancella` `Fatto` (104 px).
-  `Aa` passa alle maiuscole, `#+=` ai simboli (`!@#$%&*()?`, `_+=/\:;"~|`, `<>[]{}^`€£`);
-  il tasto attivo ha il bordo da 4 px.
+- Campo 536×56 a y 128, sotto: `Scrivi la password della rete.`
+- `Tastiera` da y 216 (vedi sotto).
 - Piede: `Frecce per scegliere, centro per scrivere, Indietro per annullare` (uguale alla tastiera esistente).
 
 **8 · mi collego**
 - `Mi collego a «Casa»…` · `Ci vuole qualche secondo.` · piede `indietro per annullare`
 
 **9 · password sbagliata**
-- Come 7, il testo resta nel campo; sotto, in Medium: `Password sbagliata, riprova.`
+- Come 7, il testo resta nel campo; sotto, in Medium: `Password sbagliata, riprova.` Il focus parte da `Cancella`.
 
 Quando il collegamento riesce si torna da soli allo stato 1 (QR). Per le reti aperte si salta la password.
 
-Nuovi componenti in Libreria: `Lucchetto`, `Segnale Wi-Fi`, `Rete Wi-Fi`, `Tasto` (Normale/Focus/Attivo),
-`Tastiera password` (Minuscole/Maiuscole/Simboli).
+## Aggiornamento (16:05): menù Wi-Fi di Simone, lucchetto, tastiera vera
 
+- Simone ha disegnato il menù Wi-Fi (`Pannello menu`, variante 5): `Spegni wifi ›` e le reti con icona
+  Wi-Fi e nome, quella scelta in negativo. Ha chiesto il lucchetto per le reti con password: aggiunto
+  alle righe `Wifi` e `Wifi Focus` di `Voce menu`, a destra, 12,5×16 px, con la proprietà `Protetta`
+  (nella riga in negativo il lucchetto è bianco, Carta G14). L'elenco di Ricevi libri ora usa le sue righe;
+  il mio componente `Rete Wi-Fi` è in Evoluzione › Superati.
+- Tastiera: "rendila più tastiera con back space e tasto per maiuscolo e caps lock" e "cancella e fatto
+  mettili sotto". Nuovo componente condiviso `Tastiera` (vale anche per Cerca nel libro e Crea raccolta),
+  varianti `Minuscole`, `Maiuscola`, `Blocco maiuscole`, `Simboli`. La vecchia è in Superati.
+  - Tasti 50×56, spazio 4, righe ogni 64 px da y 216:
+    1. `1 2 3 4 5 6 7 8 9 0`
+    2. `q w e r t y u i o p`
+    3. `⇪` (blocco maiuscole, 50) `a s d f g h j k l`
+    4. `⇧` (maiuscolo, 77) `z x c v b n m` `⌫` (cancella una lettera, 77)
+    5. `#+=` (104) `'` `Spazio` (212) `,` `.` `-`
+  - Sotto, a y 552 (24 px di stacco): `Cancella` e `Fatto`, 266×56 ciascuno.
+    `Cancella` svuota tutto il campo (il `⌫` toglie una lettera alla volta); `Fatto` conferma.
+  - `⇧` vale per una sola lettera, poi torna minuscolo; `⇪` resta finché non lo ripremi.
+    Tasto attivo: bordo 4 px e freccia piena.
+  - `Simboli` (`#+=`, poi il tasto diventa `abc`): riga 2 `! @ # $ % & * ( ) ?`,
+    riga 3 `⇪ _ + = / \ : ; " ~`, riga 4 `⇧ à è é ì ò ù € ⌫`.
+  - Icone `⇧ ⇪ ⌫` disegnate a vettore (componente `Tasto speciale`), tratto 2 px Inchiostro.
+
+![Menù Wi-Fi con lucchetto](img/2026-11-18-menu-wifi-lucchetto.png)
 ![Scegli la rete](img/2026-11-18-wifi-scegli-rete.png)
-![Password sbagliata](img/2026-11-18-wifi-password-sbagliata.png)
-![Tastiera password](img/2026-11-18-tastiera-password.png)
+![Password](img/2026-11-18-wifi-password.png)
+![Tastiera](img/2026-11-18-tastiera.png)

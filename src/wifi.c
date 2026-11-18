@@ -69,6 +69,20 @@ int wifi_radio_on(void)
     return r == 0 ? 0 : -1;
 }
 
+/* "Spegni wifi": off for real (on the K4 the first "enable 0" is sometimes ignored, 18 nov test). */
+void wifi_radio_off(void)
+{
+    if (g_sim)
+        return;
+    (void)!system("lipc-set-prop -i com.lab126.wifid enable 0 2>/dev/null");
+    (void)!system("lipc-set-prop com.lab126.cmd wirelessEnable 0 2>/dev/null");
+    for (int i = 0; i < 8 && access("/sys/class/net/wlan0", F_OK) == 0; i++)
+        usleep(250000);
+    if (access("/sys/class/net/wlan0", F_OK) == 0)
+        (void)!system("lipc-set-prop -i com.lab126.wifid enable 0 2>/dev/null");
+    log_msg("wifi: radio off");
+}
+
 void wifi_scan(void)
 {
     if (!g_sim)

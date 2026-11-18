@@ -62,6 +62,70 @@ static int battery_charging(int pct)
     return charging;
 }
 
+/* Wi-Fi in the header: 0 off, 1 on without a network, 2 connected (rx_wifi_state of the back end, which
+ * may run lipc: at most every 30 s). In the simulator CARBONELLA_WIFI=spento / senza changes it
+ * (default connected, as in Figma). */
+static int wifi_header_state(void)
+{
+    if (g_sim) {
+        const char *e = getenv("CARBONELLA_WIFI");
+        return !e ? 2 : !strcmp(e, "spento") ? 0 : !strcmp(e, "senza") ? 1 : 2;
+    }
+    static time_t last;
+    static int state = -1;
+    time_t now = time(NULL);
+    if (last && now - last < 30)
+        return state;
+    last = now;
+    int was = state;
+    state = rx_wifi_state();
+    if (state != was)
+        log_msg("wi-fi icon: %s", state == 2 ? "connected" : state == 1 ? "no network" : "off");
+    return state;
+}
+
+/* "Wi-Fi icona" (Figma 130:2276, 19 x 13): a 90 degree fan from the bottom centre (9.5, 13): a dot of
+ * radius 2.5 and three 2 px arcs, radii 4-6, 7.5-9.5, 11-13. Connected all black; no network the arcs
+ * #666; off as no network plus a 2 px black bar from the top left to the bottom right corner. */
+static void wifi_icon(Canvas *c, int x, int y, int state)
+{
+    static const float R[3][2] = { { 4, 6 }, { 7.5f, 9.5f }, { 11, 13 } };
+    const float len = sqrtf(19 * 19 + 13 * 13);
+    for (int j = 0; j < 13; j++)
+        for (int i = 0; i < 19; i++) {
+            int black = 0, grey = 0;
+            for (int sy = 0; sy < 4; sy++)
+                for (int sx = 0; sx < 4; sx++) {
+                    float px = i + (sx + 0.5f) / 4, py = j + (sy + 0.5f) / 4;
+                    float dx = px - 9.5f, dy = 13 - py, r = sqrtf(dx * dx + dy * dy);
+                    if (state == 0 && fabsf(px * 13 - py * 19) / len <= 1) {
+                        black++;
+                        continue;
+                    }
+                    if (r <= 2.5f) {
+                        black++;
+                        continue;
+                    }
+                    if (dy < fabsf(dx)) /* outside the fan from -135 to -45 degrees */
+                        continue;
+                    for (int k = 0; k < 3; k++)
+                        if (r >= R[k][0] && r <= R[k][1]) {
+                            if (state == 2)
+                                black++;
+                            else
+                                grey++;
+                        }
+                }
+            int xx = x + i, yy = y + j;
+            if ((!black && !grey) || xx < c->cx0 || xx >= c->cx1 || yy < c->cy0 || yy >= c->cy1)
+                continue;
+            uint8_t *d = c->px + (size_t)yy * c->w + xx;
+            int ink = (black * G_NERO + grey * G_CENERE) / (black + grey);
+            int a = (black + grey) * 255 / 16;
+            *d = (uint8_t)(*d + (ink - *d) * a / 255);
+        }
+}
+
 void ui_clock(char *out, size_t n)
 {
     if (g_sim) {
@@ -83,7 +147,7 @@ void ui_header(Canvas *c, const char *left, const char *center, double bar)
     canvas_fill(c, 0, 47, W, 1, G_CENERE);
     int base = ui_baseline(FACE_MONO, 16, 6, 36);
 
-    /* right group, from the right edge: pole, battery, percentage, time */
+    /* right group, from the right edge: pole, battery, percentage, Wi-Fi, time */
     int x = W - 32;
     int pct = battery_percent();
     /* battery icon (Simone, v0.6.2): 24 x 13 body, 2 px outline with rounded corners, 18 x 7 charge
@@ -122,6 +186,9 @@ void ui_header(Canvas *c, const char *left, const char *center, double bar)
         x -= 6 + font_text_width(FACE_MONO, 16, buf);
         font_draw_text(c, FACE_MONO, 16, x, base, buf, G_GRAFITE, 0);
     }
+    /* Wi-Fi between the time and the battery, 16 px each side (Simone, 18 nov) */
+    x -= 16 + 19;
+    wifi_icon(c, x, 17, wifi_header_state());
     ui_clock(buf, sizeof buf);
     x -= 16 + font_text_width(FACE_MONO, 16, buf);
     font_draw_text(c, FACE_MONO, 16, x, base, buf, G_NERO, 0);

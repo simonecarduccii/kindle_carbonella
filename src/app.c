@@ -855,6 +855,208 @@ static int step(const int *list, int n, int v, int dir)
     return list[(closest(list, n, v) + dir + n) % n];
 }
 
+/* ------------------------------------------------------------ receive */
+
+static void text_right(Canvas *c, Face f, int size, int right, int base, const char *s, uint8_t ink);
+
+/* Centred lines of text, wrapped to width w; returns the number of lines. */
+static int text_centered_wrapped(Canvas *c, Face f, int size, int top, float lh, int w, const char *text, uint8_t ink)
+{
+    char line[512];
+    const char *p = text;
+    int n = 0;
+    while (*p) {
+        size_t best = 0, i = 0;
+        for (;;) { /* the longest run of words that fits */
+            while (p[i] == ' ')
+                i++;
+            size_t j = i;
+            while (p[j] && p[j] != ' ' && p[j] != '\n')
+                j++;
+            if (j >= sizeof line)
+                break;
+            memcpy(line, p, j);
+            line[j] = 0;
+            if (best && font_text_width(f, size, line) > w)
+                break;
+            best = j;
+            if (!p[j] || p[j] == '\n')
+                break;
+            i = j;
+        }
+        if (!best)
+            break;
+        memcpy(line, p, best);
+        line[best] = 0;
+        int tw = font_text_width(f, size, line);
+        font_draw_text(c, f, size, 32 + (536 - tw) / 2, ui_baseline(f, size, top + n * lh, lh), line, ink, 0);
+        n++;
+        p += best;
+        while (*p == ' ' || *p == '\n')
+            p++;
+    }
+    return n;
+}
+
+typedef struct {
+    char title[200], author[200];
+} Arrived;
+
+/* "Ricevi libri" (Simone, 18 nov; Figma "Ricevi libri · 1-5"): a QR code with the address of a small web
+ * page; the phone sends the books there over Wi-Fi (src/ricevi.c, back end). The screen waits for the
+ * Wi-Fi, then shows the code and what arrives. Returns 1 if books arrived (the Home reads the library
+ * again), 2 to go back to the Kindle (timeout), 0 otherwise. */
+#define RX_WIFI_WAIT_S 30
+static int receive_run(App *a)
+{
+    if (rx_start(a->books, a->name) != 0) {
+        message(a, "Non riesco a ricevere libri", rx_error(), REFRESH_PARTIAL);
+        input_wait(4000, NULL);
+        rx_stop();
+        return 0;
+    }
+    time_t started = time(NULL);
+    Arrived got[3];
+    int ngot = 0, total = 0, receiving = 0, percent = 0, redraw = 2, result = 0;
+    char name[256] = "";
+    for (;;) {
+        const char *url = rx_url()[0] ? rx_url() : rx_url_usb();
+        int no_net = !url[0] && time(NULL) - started >= RX_WIFI_WAIT_S;
+        if (redraw) {
+            Canvas *c = &a->cv;
+            canvas_clear(c, G_CARTA);
+            ui_header(c, a->name, NULL, -1);
+            ui_title(c, 48, "Ricevi libri");
+            const char *hint;
+            if (!url[0]) { /* "4 · accendo il Wi-Fi" / "5 · nessuna rete" */
+                const char *m = no_net ? "Nessuna rete Wi-Fi" : "Accendo il Wi-Fi…";
+                const char *e = no_net ? "Il Kindle non trova una rete a cui collegarsi. Scegline una in "
+                                         "Impostazioni › Wi-Fi, poi riprova."
+                                       : "Ci vuole qualche secondo.";
+                int top = no_net ? 389 : 402; /* 389.5 in Figma */
+                int tw = font_text_width(FACE_SANS_MEDIUM, 24, m);
+                font_draw_text(c, FACE_SANS_MEDIUM, 24, (a->W - tw) / 2, ui_baseline(FACE_SANS_MEDIUM, 24, top, 31), m,
+                               G_NERO, 0);
+                text_centered_wrapped(c, FACE_SANS, 18, top + 43, 25, 536, e, G_NERO);
+                hint = no_net ? "centro per riprovare, indietro per uscire" : "indietro per annullare";
+            } else {
+                qr_draw(c, 140, 130, 320, url);
+                int tw = font_text_width(FACE_MONO_MEDIUM, 18, url);
+                font_draw_text(c, FACE_MONO_MEDIUM, 18, (a->W - tw) / 2, ui_baseline(FACE_MONO_MEDIUM, 18, 466, 23), url,
+                               G_NERO, a->W - 32);
+                hint = "indietro per uscire";
+                if (receiving) { /* "2 · sto ricevendo" */
+                    char t[300], pc[16];
+                    snprintf(t, sizeof t, "Sto ricevendo «%s»", name);
+                    snprintf(pc, sizeof pc, "%d%%", percent);
+                    int pw = font_text_width(FACE_MONO_MEDIUM, 16, pc);
+                    font_draw_text(c, FACE_SANS_MEDIUM, 20, 32, ui_baseline(FACE_SANS_MEDIUM, 20, 513, 26), t, G_NERO,
+                                   536 - pw - 16);
+                    text_right(c, FACE_MONO_MEDIUM, 16, 568, ui_baseline(FACE_MONO_MEDIUM, 16, 517, 21), pc, G_NERO);
+                    canvas_fill(c, 32, 547, (int)lrint(536.0 * percent / 100), 14, G_NERO);
+                } else if (ngot) { /* "3 · ricevuti": the last three */
+                    font_draw_text(c, FACE_SANS_MEDIUM, 13, 32, ui_baseline(FACE_SANS_MEDIUM, 13, 513, 17), "ARRIVATI",
+                                   G_NERO, 0);
+                    for (int i = 0; i < ngot; i++) {
+                        int aw = font_text_width(FACE_SANS, 16, got[i].author);
+                        if (aw > 220)
+                            aw = 220;
+                        font_draw_text(c, FACE_SANS_MEDIUM, 18, 32, ui_baseline(FACE_SANS_MEDIUM, 18, 540 + i * 45, 23),
+                                       got[i].title, G_NERO, 536 - aw - 16);
+                        font_draw_text(c, FACE_SANS, 16, 568 - aw, ui_baseline(FACE_SANS, 16, 541 + i * 45, 21),
+                                       got[i].author, G_NERO, 220);
+                    }
+                    hint = "i libri sono già nella Home · indietro per uscire";
+                } else { /* "1 · in attesa" */
+                    text_centered_wrapped(c, FACE_SANS, 18, 505, 25, 536,
+                                          "Inquadra il codice con il telefono e scegli i libri da mandare.\n"
+                                          "Il telefono deve essere sulla stessa rete Wi-Fi del Kindle.",
+                                          G_NERO);
+                    const char *w = "In attesa di libri…";
+                    tw = font_text_width(FACE_MONO_MEDIUM, 16, w);
+                    font_draw_text(c, FACE_MONO_MEDIUM, 16, (a->W - tw) / 2, ui_baseline(FACE_MONO_MEDIUM, 16, 571, 21),
+                                   w, G_NERO, 0);
+                }
+            }
+            int hw = font_text_width(FACE_MONO, 14, hint);
+            font_draw_text(c, FACE_MONO, 14, (a->W - hw) / 2, ui_baseline(FACE_MONO, 14, 758, 18), hint, G_CENERE, 0);
+            full(a, redraw == 2 ? REFRESH_FULL : REFRESH_PARTIAL);
+            redraw = 0;
+        }
+        int raw;
+        Key k = input_wait(150, &raw);
+        if (k == K_SLEEP) { /* the server stops while the Kindle sleeps, and starts again after */
+            rx_stop();
+            standby(a);
+            rx_start(a->books, a->name);
+            started = time(NULL);
+            redraw = 2;
+            continue;
+        }
+        if (k != K_TIMEOUT && k != K_WAKE)
+            touch_screensaver();
+        if (k == K_BACK || k == K_HOME || k == K_MENU || k == K_QUIT)
+            break;
+        if (k == K_SELECT && no_net) {
+            rx_stop();
+            rx_start(a->books, a->name);
+            started = time(NULL);
+            redraw = 1;
+            continue;
+        }
+        RxEvent ev;
+        int kind;
+        while (rx_step(&ev)) {
+            kind = ev.kind;
+            if (kind == RX_ADDRESS)
+                redraw = redraw ? redraw : 1;
+            else if (kind == RX_STARTED) {
+                snprintf(name, sizeof name, "%s", ev.name);
+                char *dot = strrchr(name, '.');
+                if (dot)
+                    *dot = 0;
+                receiving = 1;
+                percent = 0;
+                redraw = redraw ? redraw : 1;
+            } else if (kind == RX_PROGRESS) {
+                percent = ev.percent;
+                redraw = redraw ? redraw : 1;
+            } else if (kind == RX_DONE) {
+                receiving = 0;
+                total++;
+                result = 1;
+                library_scan(&a->lib, a->books, a->data, a->base);
+                char path[1024];
+                snprintf(path, sizeof path, "%s/%s", a->books, ev.name);
+                LibEntry *e = library_find(&a->lib, path);
+                memmove(&got[1], &got[0], 2 * sizeof(Arrived)); /* newest first */
+                snprintf(got[0].title, sizeof got[0].title, "%s", e && e->title ? e->title : name);
+                snprintf(got[0].author, sizeof got[0].author, "%s", e && e->author ? e->author : "");
+                if (ngot < 3)
+                    ngot++;
+                log_msg("received %s", ev.name);
+                redraw = redraw ? redraw : 1;
+            } else if (kind == RX_FAILED) {
+                receiving = 0;
+                message(a, "Libro non ricevuto", ev.name, REFRESH_PARTIAL);
+                input_wait(3000, NULL);
+                redraw = 2;
+            } else if (kind == RX_IDLE) {
+                log_msg("receive: idle, closing");
+                goto out;
+            }
+        }
+        if (!url[0] && !no_net && time(NULL) - started >= RX_WIFI_WAIT_S)
+            redraw = 1; /* from "Accendo il Wi-Fi…" to "Nessuna rete Wi-Fi" */
+        if (!url[0] && (rx_url()[0] || rx_url_usb()[0]))
+            redraw = 1;
+    }
+out:
+    rx_stop();
+    log_msg("receive: %d books", total);
+    return result;
+}
+
 /* ------------------------------------------------------------ settings */
 
 static void key_test(App *a);
@@ -2910,7 +3112,7 @@ static int home_menu(App *a, LibEntry *focus, const char *folder)
 {
     int in_archive = folder && strcmp(folder, ARCHIVE_NAME) == 0;
     /* order from Figma "Pannello menu > Home" (Simone, 2026-11-17 v1.0.6) */
-    enum { H_NEWCOLL, H_ADDCOLL, H_FINISHED, H_ARCHIVE, H_GOAL, H_SORT, H_SETTINGS, H_N };
+    enum { H_NEWCOLL, H_ADDCOLL, H_FINISHED, H_ARCHIVE, H_GOAL, H_SORT, H_RECEIVE, H_SETTINGS, H_N };
     Row rows[H_N] = {
         { "Crea nuova raccolta", "", ICON_PLUS },
         { "Aggiungi alla raccolta", "", ICON_ARROW },
@@ -2918,6 +3120,7 @@ static int home_menu(App *a, LibEntry *focus, const char *folder)
         { "Archivia libro", "", ICON_ARROW },
         { "Obbiettivo giornaliero", "", ICON_NONE },
         { "Ordina per", "", ICON_NONE },
+        { "Ricevi libri", "", ICON_ARROW }, /* Simone, 18 nov */
         { "Tutte le impostazioni", "", ICON_ARROW },
     };
     if (in_archive) /* Simone: in the archive "Archivia libro" becomes "Togli dall'archivio" */
@@ -2961,6 +3164,10 @@ static int home_menu(App *a, LibEntry *focus, const char *folder)
             message(a, "Scegli prima un libro", "Metti il riquadro su una copertina e riapri il menu.", REFRESH_PARTIAL);
             input_wait(3000, NULL);
             return changed;
+        case H_RECEIVE: {
+            int r = receive_run(a);
+            return r == 2 ? 2 : r == 1 ? 1 : changed;
+        }
         case H_SETTINGS: {
             int r = settings_run(a);
             return r == 2 ? 2 : r == 3 ? 3 : r == 4 ? 4 : r == 1 ? 1 : changed;

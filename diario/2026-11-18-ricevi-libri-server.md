@@ -73,3 +73,30 @@ Con un programmino di prova e `curl`, compilato con AddressSanitizer:
 - Compila per ARM (zig). **Non ancora provato sul Kindle**: Wi-Fi, firewall e telefono vero.
 
 Tempo: circa 45 minuti.
+
+## Scegliere la rete dentro "Ricevi libri" (16:00–16:15 UTC)
+
+Simone, davanti allo stato che rimandava alle Impostazioni: "non farmi tornare indietro, voglio selzionare
+qui il wifi". Il design ha disegnato gli stati 5–9 (scegli la rete, nessuna rete, password, mi collego,
+password sbagliata): testi in [2026-11-18-scegli-rete-wifi](2026-11-18-scegli-rete-wifi.md).
+
+Prove sul Kindle fatte dal front end (`/mnt/project-files/carbonella/wifi-kindle-2-2026-11-18.md`):
+
+- Con Carbonella aperto, `com.lab126.cmd wirelessEnable 1` **non** accende la radio: wifid dice
+  "Wireless: Off" e `wlan0` non esiste. Ieri, con l'interfaccia Amazon accesa, bastava.
+- `cmConnect` su una rete salvata non fa niente finché la radio è spenta.
+- L'elenco delle reti si legge con `lipc-hash-prop -n com.lab126.wifid scanList` nel formato
+  `{ essid = "…", secured = "yes", known = "no", signal = (1), signal_max = (5) }`.
+
+`src/wifi.c` (nuovo): `wifi_radio_on` (accende anche `com.lab126.wifid enable`), `wifi_scan`,
+`wifi_list` (reti salvate prima, poi per segnale; segnale in 3 gradini Forte/Medio/Debole; stesso nome
+una volta sola), `wifi_connect` (rete salvata, aperta o con password: la password va a wifid con
+`createProfile` attraverso un file temporaneo in RAM cancellato subito, mai nel log), `wifi_connect_poll`
+(collegato / password sbagliata / non riesco; dopo 45 s senza indirizzo una rete appena aggiunta viene
+dimenticata e dice "password sbagliata"). Nel simulatore: le reti del frame Figma, e "TIM-38492011" dà
+password sbagliata, per le schermate.
+
+Provato nel cloud: lettura dell'elenco (virgolette nel nome, doppioni, nome vuoto), AddressSanitizer
+pulito. **Da verificare sul Kindle**: che `com.lab126.wifid enable 1` accenda davvero la radio, il formato
+di `createProfile` (sono le chiavi che usa KOReader sui Kindle) e cosa dice `cmState` con una password
+sbagliata.

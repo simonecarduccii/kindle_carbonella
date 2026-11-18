@@ -365,6 +365,26 @@ const char *rx_url_usb(void); /* same server over the USB cable (USBNetwork), ""
 /* Wi-Fi now, for the header icon and the screen: 0 = off, 1 = on but not connected (no address yet),
  * 2 = connected. Cheap (no lipc call when connected): fine every few seconds, also without the server. */
 int rx_wifi_state(void);
+/* Choosing the Wi-Fi network inside "Ricevi libri" (wifi.c). */
+typedef struct {
+    char essid[64];
+    int secured; /* lock icon */
+    int known;   /* saved on the Kindle: no password needed */
+    int signal;  /* 0..100 */
+    int bars;    /* 3 Forte, 2 Medio, 1 Debole */
+} WifiNet;
+int wifi_radio_on(void); /* switches the radio on, also with the framework stopped */
+void wifi_scan(void);    /* asks for a new scan: read wifi_list() 4-6 s later */
+int wifi_list(WifiNet *out, int max); /* saved networks first, then by signal; same name only once */
+int wifi_parse_scan(const char *s, WifiNet *out, int max);
+/* Starts connecting. password: NULL for a saved network, "" for an open one, else the typed password
+ * (saved on the Kindle, never in Carbonella's files or log). 0 = started, <0 = could not start. */
+int wifi_connect(const char *essid, const char *password);
+/* Call every ~500 ms while "Mi collego a «…»…": 0 still trying, 1 connected (back to the QR),
+ * -1 wrong password ("Password sbagliata, riprova."), -2 no connection (network gone, too far). */
+int wifi_connect_poll(void);
+void wifi_connect_cancel(void);
+
 /* Stops the server, puts Wi-Fi and firewall back as they were. Safe twice and after a failed start. */
 void rx_stop(void);
 

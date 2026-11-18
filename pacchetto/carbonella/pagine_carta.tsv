@@ -1,0 +1,13 @@
+# Carbonella - pagine dell'edizione cartacea dei libri, per la Home.
+# Una riga per libro: titolo <TAB> autore <TAB> pagine <TAB> edizione da cui vengono le pagine.
+# Il libro si riconosce da titolo e autore (maiuscole e accenti non contano), non dal file:
+# le pagine restano anche se il libro cambia raccolta. Autore vuoto = qualsiasi autore.
+# Per aggiungere o correggere un libro senza aspettare un aggiornamento, scrivi la riga in
+# /mnt/us/carbonella/dati/pagine_carta.tsv: quel file vale più di questo.
+# Se un EPUB contiene la lista delle pagine dell'edizione cartacea, Carbonella la usa da sola.
+Mr Gwyn	Alessandro Baricco	158	Feltrinelli, Universale Economica 2012, ISBN 9788807880018
+1984	George Orwell	321	Mondadori, Oscar Moderni Cult 2019, trad. Nicola Gardini, ISBN 9788804719137
+Il mito di Sisifo	Albert Camus	144	Bompiani, Tascabili 2001, trad. Attilio Borelli, ISBN 9788845246425
+La morte della Pizia	Friedrich Dürrenmatt	68	Adelphi, Piccola Biblioteca 216, 1988, ISBN 9788845902963
+Follia	Patrick McGrath	296	Adelphi, gli Adelphi 408, 2012, ISBN 9788845926983
+Così parlò Zarathustra	Friedrich Nietzsche	425	Adelphi, Piccola Biblioteca 36, 1976, pp. XVII-425, ISBN 9788845906558

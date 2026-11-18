@@ -1,0 +1,13 @@
+{
+  "items": [
+    {
+      "name": "Carbonella",
+      "priority": 0,
+      "items": [
+        { "name": "Apri Carbonella", "priority": 1, "action": "./bin/avvia.sh", "exitmenu": true },
+        { "name": "Apri l'ultimo libro", "priority": 2, "action": "./bin/avvia.sh", "params": "--ultimo", "exitmenu": true },
+        { "name": "Prova dei tasti", "priority": 3, "action": "./bin/avvia.sh", "params": "--tasti", "exitmenu": true }
+      ]
+    }
+  ]
+}

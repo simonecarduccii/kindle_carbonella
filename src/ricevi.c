@@ -116,16 +116,13 @@ static int run(const char *cmd)
     return r;
 }
 
+/* Is the Wi-Fi radio on? With the framework stopped com.lab126.cmd wirelessEnable can say 1 while the
+ * radio is off (18 nov test): the truth is whether wlan0 exists. -1 = not a Kindle (no lipc). */
 static int wifi_enabled(void)
 {
-    FILE *f = popen("lipc-get-prop com.lab126.cmd wirelessEnable 2>/dev/null", "r");
-    if (!f)
+    if (access("/usr/bin/lipc-get-prop", X_OK) != 0)
         return -1;
-    char buf[16] = "";
-    if (!fgets(buf, sizeof buf, f))
-        buf[0] = 0;
-    pclose(f);
-    return buf[0] ? atoi(buf) : -1;
+    return access("/sys/class/net/wlan0", F_OK) == 0;
 }
 
 static void firewall(int open)
@@ -302,7 +299,10 @@ int rx_start(const char *books_dir, const char *device_name)
 
     int en = wifi_enabled();
     if (en == 0) {
-        if (wifi_radio_on() == 0 && wifi_enabled() == 1) {
+        wifi_radio_on();
+        for (int i = 0; i < 20 && wifi_enabled() != 1; i++) /* wlan0 appears in 1-3 s */
+            usleep(250000);
+        if (wifi_enabled() == 1) {
             R.wifi_turned_on = 1;
         } else {
             /* with the USB cable (USBNetwork) the Mac can still send books: go on without Wi-Fi */
@@ -376,7 +376,13 @@ void rx_stop(void)
         firewall(0);
     R.fw_open = 0;
     if (R.wifi_turned_on) /* back as it was: Wi-Fi costs battery */
+    {
+        run("lipc-set-prop -i com.lab126.wifid enable 0");
         run("lipc-set-prop com.lab126.cmd wirelessEnable 0");
+        usleep(1000000); /* wlan0 goes away after a moment */
+        if (wifi_enabled() == 1) /* on the K4 the first "enable 0" is sometimes ignored (18 nov test) */
+            run("lipc-set-prop -i com.lab126.wifid enable 0");
+    }
     R.wifi_turned_on = 0;
     R.on = 0;
     R.url[0] = R.url_usb[0] = 0;

@@ -40,19 +40,22 @@ static int battery_percent(void)
  * while current > 0 and the level is below 100%: a full battery on the cable is not "in carica". Read at
  * most every 30 s; each change of level or state goes to the log with the current, to check the rule on the device.
  * In the simulator, CARBONELLA_CARICA=1 shows the bolt. */
+static time_t charge_last;
 static int battery_charging(int pct)
 {
     if (g_sim)
         return getenv("CARBONELLA_CARICA") != NULL;
-    static time_t last;
     static int charging, logged = -1, logged_pct = -1;
     time_t now = time(NULL);
+    time_t last = charge_last;
     if (last && now - last < 30)
         return charging;
+    charge_last = now;
     last = now;
     char *s = read_file("/sys/devices/system/yoshi_battery/yoshi_battery0/battery_current", NULL);
     int ma = s ? atoi(s) : 0;
     charging = s && ma > 0 && pct >= 0 && pct < 100;
+    (void)last;
     if (s && (charging != logged || pct != logged_pct)) {
         log_msg("battery %d%%, current %d mA: %s", pct, ma, charging ? "charging" : "not charging");
         logged = charging;
@@ -137,20 +140,12 @@ void ui_clock(char *out, size_t n)
     snprintf(out, n, "%02d:%02d", tm.tm_hour, tm.tm_min);
 }
 
-/* "Header" component: 48 px, Plex Mono 16, name or title on the left, time and battery on the right,
- * an optional small text in the middle and an optional progress bar on the bottom edge. */
-void ui_header(Canvas *c, const char *left, const char *center, double bar)
+/* The battery of the header: pole at the right edge 'right', 24 x 13 body left of it, the bolt while
+ * charging. */
+static void battery_icon(Canvas *c, int right, int pct, int charging)
 {
-    const int W = c->w;
-    canvas_fill(c, 0, 0, W, 48, G_CARTA);
-    canvas_fill(c, 0, 47, W, 1, G_CENERE);
-    int base = ui_baseline(FACE_MONO, 16, 6, 36);
-
-    /* right group, from the right edge: pole, battery, percentage, Wi-Fi, time */
-    int x = W - 32;
-    int pct = battery_percent();
-    /* battery icon (Simone, v0.6.2): 24 x 13 body, 2 px outline with rounded corners, 18 x 7 charge
-     * 1 px inside, 2 x 6 pole */
+    int x = right;
+    canvas_fill(c, x - 26, 15, 26, 18, G_CARTA);
     canvas_fill(c, x - 2, 20, 2, 6, G_NERO);
     x -= 2 + 24;
     canvas_frame(c, x, 17, 24, 13, 2, G_NERO);
@@ -162,7 +157,7 @@ void ui_header(Canvas *c, const char *left, const char *center, double bar)
         int fw = (int)lrintf(18.0f * (pct > 100 ? 100 : pct) / 100);
         canvas_fill(c, x + 3, 20, fw < 1 ? 1 : fw, 7, G_NERO);
     }
-    if (battery_charging(pct)) { /* "In carica" (Simone, 17 nov): a bolt 8 x 14 over the body, white edge */
+    if (charging) { /* "In carica" (Simone, 17 nov): a bolt 8 x 14 over the body, white edge */
         static const float BOLT[12] = { 6, 0, 0, 7.8f, 3.6f, 8, 2, 14, 8, 6.1f, 4.4f, 6 };
         float bx = x + 8, by = 17 - 0.66f, pts[12];
         for (int dy = -1; dy <= 1; dy++)
@@ -179,6 +174,82 @@ void ui_header(Canvas *c, const char *left, const char *center, double bar)
         }
         canvas_polygon(c, pts, 6, G_NERO);
     }
+}
+
+/* What the last header showed, to change only the battery when the charger comes or goes. */
+static Canvas *hdr_canvas;
+static int hdr_icon_x, hdr_charging = -1;
+#define BAT_W 32
+#define BAT_H 20
+static uint8_t hdr_pix[BAT_W * BAT_H]; /* the battery as drawn, to know it is still on the canvas */
+static void bat_rect(const Canvas *c, uint8_t *out, int copy_in)
+{
+    for (int j = 0; j < BAT_H; j++)
+        for (int i = 0; i < BAT_W; i++) {
+            uint8_t *p = c->px + (size_t)(14 + j) * c->w + hdr_icon_x - 2 + i;
+            if (copy_in)
+                out[j * BAT_W + i] = *p;
+            else if (out[j * BAT_W + i] != *p)
+                out[0] = (uint8_t)~out[0], i = BAT_W, j = BAT_H; /* mark: differs */
+        }
+}
+static int bat_same(const Canvas *c)
+{
+    uint8_t first = hdr_pix[0];
+    bat_rect(c, hdr_pix, 0);
+    if (hdr_pix[0] != first) {
+        hdr_pix[0] = first;
+        return 0;
+    }
+    return 1;
+}
+
+/* Called every couple of seconds while waiting for a key (Simone, 18 nov: the bolt must appear and go
+ * away as soon as the charger is plugged in or out). Reads the battery now; if the charging state changed
+ * and the header drawn last is still on the canvas untouched, redraws only the battery and returns 1
+ * with its rectangle in *r. */
+int ui_battery_poll(Canvas *c, Rect *r)
+{
+    if (g_sim || hdr_canvas != c || hdr_charging < 0)
+        return 0;
+    charge_last = 0; /* read the current now */
+    int pct = battery_percent();
+    int charging = battery_charging(pct);
+    if (charging == hdr_charging)
+        return 0;
+    if (!bat_same(c)) { /* another screen (or a faded one) is up: the next header will show it */
+        hdr_charging = -1;
+        return 0;
+    }
+    battery_icon(c, hdr_icon_x + 26, pct, charging);
+    hdr_charging = charging;
+    bat_rect(c, hdr_pix, 1);
+    *r = (Rect){ hdr_icon_x - 2, 14, 32, 20 };
+    log_msg("battery: %s, header updated", charging ? "charger in" : "charger out");
+    return 1;
+}
+
+/* "Header" component: 48 px, Plex Mono 16, name or title on the left, time and battery on the right,
+ * an optional small text in the middle and an optional progress bar on the bottom edge. */
+void ui_header(Canvas *c, const char *left, const char *center, double bar)
+{
+    const int W = c->w;
+    canvas_fill(c, 0, 0, W, 48, G_CARTA);
+    canvas_fill(c, 0, 47, W, 1, G_CENERE);
+    int base = ui_baseline(FACE_MONO, 16, 6, 36);
+
+    /* right group, from the right edge: pole, battery, percentage, Wi-Fi, time */
+    int x = W - 32;
+    int pct = battery_percent();
+    /* battery icon (Simone, v0.6.2): 24 x 13 body, 2 px outline with rounded corners, 18 x 7 charge
+     * 1 px inside, 2 x 6 pole */
+    int charging = battery_charging(pct);
+    battery_icon(c, x, pct, charging);
+    x -= 2 + 24;
+    hdr_canvas = c;
+    hdr_icon_x = x;
+    hdr_charging = charging;
+    bat_rect(c, hdr_pix, 1);
     char buf[16];
     if (pct >= 0 && g_battery_pct) {
         snprintf(buf, sizeof buf, "%d%%", pct);

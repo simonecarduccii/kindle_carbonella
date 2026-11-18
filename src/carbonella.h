@@ -166,6 +166,7 @@ typedef enum { ICON_NONE, ICON_ARROW, ICON_PLUS } MenuIcon;
 
 int ui_baseline(Face f, int size, float top, float lh);
 void ui_wifi_refresh(void);
+int ui_battery_poll(Canvas *c, Rect *r); /* the charger came or went: battery redrawn, 1 */
 void ui_wifi_glyph(Canvas *c, int x, int y, int strong, int slash, uint8_t ink, uint8_t dim);
 void ui_clock(char *out, size_t n);
 /* Top bar (48 px). center: small text in the middle or NULL; bar: 0..1 progress on the bottom edge, <0 none. */

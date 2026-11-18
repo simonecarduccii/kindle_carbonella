@@ -297,6 +297,25 @@ static Key light_standby(App *a)
     return k;
 }
 
+/* input_wait in slices of 2 s, looking at the charger in between: the bolt comes and goes at once. */
+#define BATTERY_POLL_MS 2000
+static Key input_wait_battery(App *a, int timeout_ms, int *raw)
+{
+    double end = timeout_ms >= 0 ? now_ms() + timeout_ms : 0;
+    for (;;) {
+        int left = timeout_ms >= 0 ? (int)(end - now_ms()) : BATTERY_POLL_MS;
+        if (timeout_ms >= 0 && left <= 0)
+            return K_TIMEOUT;
+        int slice = left < BATTERY_POLL_MS ? left : BATTERY_POLL_MS;
+        Key k = input_wait(g_sim ? timeout_ms : slice, raw);
+        if (k != K_TIMEOUT || g_sim)
+            return k;
+        Rect r;
+        if (ui_battery_poll(&a->cv, &r))
+            display_update(&a->cv, r, REFRESH_PARTIAL);
+    }
+}
+
 static void draw_page(App *a);
 static Key wait_key(App *a, int *raw)
 {
@@ -311,7 +330,7 @@ static Key wait_key(App *a, int *raw)
     int got = 0;
     if (reading && a->goal_note_until > 0) { /* "N min oggi" goes away after GOAL_NOTE_MS */
         int left = (int)(a->goal_note_until - now_ms());
-        if (left > 0 && (k = input_wait(left, raw)) != K_TIMEOUT)
+        if (left > 0 && (k = input_wait_battery(a, left, raw)) != K_TIMEOUT)
             got = 1;
         else {
             a->goal_note_until = 0;
@@ -325,14 +344,14 @@ static Key wait_key(App *a, int *raw)
         int left = t;
         for (;;) {
             int slice = left < READING_TOUCH_MS ? left : READING_TOUCH_MS;
-            k = input_wait(slice, raw);
+            k = input_wait_battery(a, slice, raw);
             left -= slice;
             if (k != K_TIMEOUT || left <= 0)
                 break;
             touch_screensaver();
         }
     } else
-        k = input_wait(t, raw);
+        k = input_wait_battery(a, t, raw);
     if (k == K_TIMEOUT && sb) {
         Key w = light_standby(a);
         if (w == K_TIMEOUT) { /* powerd's goingToScreenSaver arrives next: standby() shows the cover */

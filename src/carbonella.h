@@ -165,6 +165,7 @@ extern int g_sim; /* simulator: fixed clock (21:40) and battery (100%), as in th
 typedef enum { ICON_NONE, ICON_ARROW, ICON_PLUS } MenuIcon;
 
 int ui_baseline(Face f, int size, float top, float lh);
+void ui_wifi_glyph(Canvas *c, int x, int y, int strong, int slash, uint8_t ink, uint8_t dim);
 void ui_clock(char *out, size_t n);
 /* Top bar (48 px). center: small text in the middle or NULL; bar: 0..1 progress on the bottom edge, <0 none. */
 void ui_header(Canvas *c, const char *left, const char *center, double bar);

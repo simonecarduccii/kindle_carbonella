@@ -85,44 +85,41 @@ static int wifi_header_state(void)
 }
 
 /* "Wi-Fi icona" (Figma 130:2276, 19 x 13): a 90 degree fan from the bottom centre (9.5, 13): a dot of
- * radius 2.5 and three 2 px arcs, radii 4-6, 7.5-9.5, 11-13. Connected all black; no network the arcs
- * #666; off as no network plus a 2 px black bar from the top left to the bottom right corner. */
-static void wifi_icon(Canvas *c, int x, int y, int state)
+ * radius 2.5 and three 2 px arcs, radii 4-6, 7.5-9.5, 11-13. In the header: connected all black; no
+ * network the arcs #666; off as no network plus a 2 px bar from the top left to the bottom right corner.
+ * The same fan is the "Segnale Wi-Fi" of the network list: the first 'strong' arcs in ink, the rest dim. */
+void ui_wifi_glyph(Canvas *c, int x, int y, int strong, int slash, uint8_t ink, uint8_t dim)
 {
     static const float R[3][2] = { { 4, 6 }, { 7.5f, 9.5f }, { 11, 13 } };
     const float len = sqrtf(19 * 19 + 13 * 13);
     for (int j = 0; j < 13; j++)
         for (int i = 0; i < 19; i++) {
-            int black = 0, grey = 0;
+            int full_ = 0, half = 0;
             for (int sy = 0; sy < 4; sy++)
                 for (int sx = 0; sx < 4; sx++) {
                     float px = i + (sx + 0.5f) / 4, py = j + (sy + 0.5f) / 4;
                     float dx = px - 9.5f, dy = 13 - py, r = sqrtf(dx * dx + dy * dy);
-                    if (state == 0 && fabsf(px * 13 - py * 19) / len <= 1) {
-                        black++;
-                        continue;
-                    }
-                    if (r <= 2.5f) {
-                        black++;
+                    if ((slash && fabsf(px * 13 - py * 19) / len <= 1) || r <= 2.5f) {
+                        full_++;
                         continue;
                     }
                     if (dy < fabsf(dx)) /* outside the fan from -135 to -45 degrees */
                         continue;
                     for (int k = 0; k < 3; k++)
                         if (r >= R[k][0] && r <= R[k][1]) {
-                            if (state == 2)
-                                black++;
+                            if (k < strong)
+                                full_++;
                             else
-                                grey++;
+                                half++;
                         }
                 }
             int xx = x + i, yy = y + j;
-            if ((!black && !grey) || xx < c->cx0 || xx >= c->cx1 || yy < c->cy0 || yy >= c->cy1)
+            if ((!full_ && !half) || xx < c->cx0 || xx >= c->cx1 || yy < c->cy0 || yy >= c->cy1)
                 continue;
             uint8_t *d = c->px + (size_t)yy * c->w + xx;
-            int ink = (black * G_NERO + grey * G_CENERE) / (black + grey);
-            int a = (black + grey) * 255 / 16;
-            *d = (uint8_t)(*d + (ink - *d) * a / 255);
+            int col = (full_ * ink + half * dim) / (full_ + half);
+            int a = (full_ + half) * 255 / 16;
+            *d = (uint8_t)(*d + (col - *d) * a / 255);
         }
 }
 
@@ -188,7 +185,8 @@ void ui_header(Canvas *c, const char *left, const char *center, double bar)
     }
     /* Wi-Fi between the time and the battery, 16 px each side (Simone, 18 nov) */
     x -= 16 + 19;
-    wifi_icon(c, x, 17, wifi_header_state());
+    int ws = wifi_header_state();
+    ui_wifi_glyph(c, x, 17, ws == 2 ? 3 : 0, ws == 0, G_NERO, G_CENERE);
     ui_clock(buf, sizeof buf);
     x -= 16 + font_text_width(FACE_MONO, 16, buf);
     font_draw_text(c, FACE_MONO, 16, x, base, buf, G_NERO, 0);

@@ -43,8 +43,8 @@ static const int LINES[] = { 130, 140, 150, 160, 180 };
 #define NLINES ((int)(sizeof LINES / sizeof LINES[0]))
 static const int MARGINS[] = { 32, 48, 64 };
 static const char *MARGIN_NAMES[] = { "Stretti", "Medi", "Larghi" };
-static const int YEARS[] = { 6, 12, 18, 24, 36, 52 };
-#define NYEARS ((int)(sizeof YEARS / sizeof YEARS[0]))
+/* "Libri da leggere nell'anno": one book per press (Simone, 18 nov), from 1 to 99 */
+static int year_step(int v, int dir) { v += dir; return v < 1 ? 1 : v > 99 ? 99 : v; }
 
 /* Bytes of XHTML per page at 18 px, to estimate pages before a book is opened. */
 #define BYTES_PER_PAGE_18 2300.0
@@ -898,6 +898,270 @@ static int text_centered_wrapped(Canvas *c, Face f, int size, int top, float lh,
     return n;
 }
 
+/* ------------------------------------------------- choosing the Wi-Fi network */
+
+/* "Tastiera password" (Figma, 18 nov): keys 50 x 56 every 54 px from x 32, rows every 64 px from y 216;
+ * three layouts, the last row Aa · #+= · Spazio · Cancella · Fatto, 104 px each. */
+static const char *PW_KEYS[3][4][10] = {
+    { { "1", "2", "3", "4", "5", "6", "7", "8", "9", "0" },
+      { "q", "w", "e", "r", "t", "y", "u", "i", "o", "p" },
+      { "a", "s", "d", "f", "g", "h", "j", "k", "l", "'" },
+      { "z", "x", "c", "v", "b", "n", "m", ",", ".", "-" } },
+    { { "1", "2", "3", "4", "5", "6", "7", "8", "9", "0" },
+      { "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P" },
+      { "A", "S", "D", "F", "G", "H", "J", "K", "L", "'" },
+      { "Z", "X", "C", "V", "B", "N", "M", ",", ".", "-" } },
+    { { "1", "2", "3", "4", "5", "6", "7", "8", "9", "0" },
+      { "!", "@", "#", "$", "%", "&", "*", "(", ")", "?" },
+      { "_", "+", "=", "/", "\\", ":", ";", "\"", "~", "|" },
+      { "<", ">", "[", "]", "{", "}", "^", "`", "€", "£" } },
+};
+static const char *PW_LAST[5] = { "Aa", "#+=", "Spazio", "Cancella", "Fatto" };
+
+static void pw_draw_key(App *a, int layout, int r, int c, int focus)
+{
+    int x, w, y = 216 + r * 64;
+    const char *l;
+    int active = 0;
+    if (r < 4) {
+        x = 32 + c * 54;
+        w = 50;
+        l = PW_KEYS[layout][r][c];
+    } else {
+        x = 32 + c * 108;
+        w = 104;
+        l = PW_LAST[c];
+        active = (c == 0 && layout == 1) || (c == 1 && layout == 2);
+    }
+    canvas_fill(&a->cv, x, y, w, 56, focus ? G_NERO : G_CARTA);
+    if (!focus)
+        canvas_frame(&a->cv, x, y, w, 56, active ? 4 : 2, G_NERO);
+    Face f = r < 4 ? FACE_SANS : FACE_SANS_MEDIUM;
+    int size = r < 4 ? 24 : 18;
+    int tw = font_text_width(f, size, l);
+    font_draw_text(&a->cv, f, size, x + (w - tw) / 2, ui_baseline(f, size, y + 12.5f, 31), l, focus ? G_CARTA : G_NERO,
+                   0);
+}
+
+/* "7 · password" / "9 · password sbagliata". Returns 1 with the password in buf, 0 if cancelled. */
+static int password_run(App *a, const char *essid, char *buf, size_t n, int wrong)
+{
+    int layout = 0, r = 1, c = 0, redraw = 2;
+    for (;;) {
+        if (redraw) {
+            Canvas *cv = &a->cv;
+            canvas_clear(cv, G_CARTA);
+            ui_header(cv, a->name, NULL, -1);
+            ui_title(cv, 48, "Password");
+            text_right(cv, FACE_SANS, 16, 568, ui_baseline(FACE_SANS, 16, 83, 21), essid, G_CENERE);
+            canvas_frame(cv, 32, 128, 536, 56, 2, G_NERO);
+            int tw = font_text_width(FACE_SANS, 20, buf), x0 = 50;
+            if (tw > 500)
+                x0 -= tw - 500;
+            canvas_clip(cv, 34, 130, 532, 52);
+            int end = font_draw_text(cv, FACE_SANS, 20, x0, ui_baseline(FACE_SANS, 20, 143, 26), buf, G_NERO, 0);
+            canvas_noclip(cv);
+            canvas_fill(cv, end + 2, 142, 2, 28, G_NERO); /* cursor */
+            font_draw_text(cv, wrong ? FACE_SANS_MEDIUM : FACE_SANS, 16, 32, ui_baseline(FACE_SANS, 16, 190, 20),
+                           wrong ? "Password sbagliata, riprova." : "Scrivi la password della rete.", G_NERO, 0);
+            for (int i = 0; i < 5; i++)
+                for (int j = 0; j < (i < 4 ? 10 : 5); j++)
+                    pw_draw_key(a, layout, i, j, i == r && j == c);
+            const char *hint = "Frecce per scegliere, centro per scrivere, Indietro per annullare";
+            int hw = font_text_width(FACE_MONO, 14, hint);
+            font_draw_text(cv, FACE_MONO, 14, (a->W - hw) / 2, ui_baseline(FACE_MONO, 14, 758, 18), hint, G_CENERE,
+                           a->W - 32);
+            full(a, redraw == 2 ? REFRESH_FULL : REFRESH_PARTIAL);
+            redraw = 0;
+        }
+        int raw;
+        Key k = wait_key(a, &raw);
+        int cols = r < 4 ? 10 : 5;
+        switch (k) {
+        case K_UP:
+        case K_DOWN: {
+            int nr = (r + (k == K_DOWN ? 1 : 4)) % 5;
+            if (nr == 4)
+                c = c * 5 / 10; /* onto the wide keys below */
+            else if (r == 4)
+                c = c * 2;
+            r = nr;
+            break;
+        }
+        case K_LEFT: c = (c + cols - 1) % cols; break;
+        case K_RIGHT: c = (c + 1) % cols; break;
+        case K_SELECT: {
+            size_t l = strlen(buf);
+            if (r < 4) {
+                const char *t = PW_KEYS[layout][r][c];
+                if (l + strlen(t) < n)
+                    strcat(buf, t);
+                wrong = 0;
+            } else if (c == 0)
+                layout = layout == 1 ? 0 : 1;
+            else if (c == 1)
+                layout = layout == 2 ? 0 : 2;
+            else if (c == 2) {
+                if (l + 1 < n)
+                    strcat(buf, " ");
+            } else if (c == 3) {
+                while (l > 0 && ((unsigned char)buf[l - 1] & 0xC0) == 0x80)
+                    l--;
+                if (l > 0)
+                    buf[l - 1] = 0;
+            } else
+                return 1;
+            break;
+        }
+        case K_BACK:
+        case K_HOME:
+        case K_MENU:
+        case K_TIMEOUT:
+        case K_QUIT: return 0;
+        default: continue;
+        }
+        redraw = 1;
+    }
+}
+
+/* A centred message with an explanation, the title and the hint at the bottom (states 4, 6, 8). */
+static void wifi_message(App *a, const char *title, const char *msg, const char *expl, const char *hint, int top)
+{
+    Canvas *c = &a->cv;
+    canvas_clear(c, G_CARTA);
+    ui_header(c, a->name, NULL, -1);
+    ui_title(c, 48, title);
+    int tw = font_text_width(FACE_SANS_MEDIUM, 24, msg);
+    font_draw_text(c, FACE_SANS_MEDIUM, 24, (a->W - tw) / 2, ui_baseline(FACE_SANS_MEDIUM, 24, top, 31), msg, G_NERO,
+                   a->W - 64);
+    text_centered_wrapped(c, FACE_SANS, 18, top + 43, 25, 536, expl, G_NERO);
+    int hw = font_text_width(FACE_MONO, 14, hint);
+    font_draw_text(c, FACE_MONO, 14, (a->W - hw) / 2, ui_baseline(FACE_MONO, 14, 758, 18), hint, G_CENERE, 0);
+}
+
+/* "Lucchetto" 10 x 13: a 2 px shackle over a 10 x 7 body. */
+static void lock_icon(Canvas *c, int x, int y, uint8_t ink)
+{
+    canvas_frame(c, x + 1, y, 8, 8, 2, ink);
+    canvas_fill(c, x, y + 6, 10, 7, ink);
+}
+
+/* "5 · scegli la rete": returns 1 once connected (back to the QR), 0 to leave "Ricevi libri". */
+#define WIFI_MAX 9
+static int wifi_choose(App *a)
+{
+    WifiNet nets[WIFI_MAX];
+    int n = 0, sel = 0, scan = 1;
+    char pw[128];
+    for (;;) {
+        if (scan) { /* a new scan: the list is read 5 s later */
+            wifi_radio_on();
+            wifi_scan();
+            wifi_message(a, "Scegli la rete Wi-Fi", "Cerco le reti…", "Ci vuole qualche secondo.",
+                         "indietro per uscire", 402);
+            full(a, REFRESH_PARTIAL);
+            int raw;
+            Key k = input_wait(g_sim ? 0 : 5000, &raw);
+            if (k == K_BACK || k == K_HOME || k == K_MENU || k == K_QUIT)
+                return 0;
+            n = wifi_list(nets, WIFI_MAX);
+            sel = 0;
+            scan = 0;
+            log_msg("wifi: %d networks", n);
+        }
+        if (n == 0) { /* "6 · nessuna rete trovata" */
+            wifi_message(a, "Scegli la rete Wi-Fi", "Nessuna rete trovata", "Avvicina il Kindle al router e riprova.",
+                         "centro per cercare di nuovo, indietro per uscire", 402);
+            full(a, REFRESH_PARTIAL);
+            int raw;
+            Key k = wait_key(a, &raw);
+            if (k == K_SELECT)
+                scan = 1;
+            else if (k == K_BACK || k == K_HOME || k == K_MENU || k == K_TIMEOUT || k == K_QUIT)
+                return 0;
+            continue;
+        }
+        /* the list: rows of 56 px from y 171, the last one "Cerca di nuovo" */
+        Canvas *c = &a->cv;
+        canvas_clear(c, G_CARTA);
+        ui_header(c, a->name, NULL, -1);
+        ui_title(c, 48, "Scegli la rete Wi-Fi");
+        font_draw_text(c, FACE_SANS, 18, 32, ui_baseline(FACE_SANS, 18, 130, 25),
+                       "Il Kindle non è collegato. Scegli la rete da usare per ricevere i libri.", G_NERO, 536);
+        for (int i = 0; i < n; i++) {
+            int y = 171 + i * 56, f = i == sel;
+            uint8_t ink = f ? G_CARTA : G_NERO;
+            ui_menu_row(c, 16, y, 568, nets[i].essid, "", ICON_NONE, f);
+            if (nets[i].secured)
+                lock_icon(c, 523, y + 21, ink);
+            ui_wifi_glyph(c, 545, y + 21, nets[i].bars, 0, ink, f ? G_SMOG : G_LEGGERO);
+        }
+        ui_menu_row(c, 16, 171 + n * 56, 568, "Cerca di nuovo", "", ICON_ARROW, sel == n);
+        const char *hint = "centro per collegarti, indietro per uscire";
+        int hw = font_text_width(FACE_MONO, 14, hint);
+        font_draw_text(c, FACE_MONO, 14, (a->W - hw) / 2, ui_baseline(FACE_MONO, 14, 758, 18), hint, G_CENERE, 0);
+        full(a, REFRESH_PARTIAL);
+        int raw;
+        Key k = wait_key(a, &raw);
+        if (k == K_UP)
+            sel = (sel + n) % (n + 1);
+        else if (k == K_DOWN)
+            sel = (sel + 1) % (n + 1);
+        else if (k == K_BACK || k == K_HOME || k == K_MENU || k == K_TIMEOUT || k == K_QUIT)
+            return 0;
+        else if (k == K_SELECT || k == K_RIGHT) {
+            if (sel == n) {
+                scan = 1;
+                continue;
+            }
+            WifiNet *w = &nets[sel];
+            const char *pass = w->known ? NULL : !w->secured ? "" : NULL;
+            pw[0] = 0;
+            int wrong = 0;
+            for (;;) {
+                if (!w->known && w->secured) {
+                    if (!password_run(a, w->essid, pw, sizeof pw, wrong))
+                        break;
+                    pass = pw;
+                }
+                if (wifi_connect(w->essid, pass) != 0) {
+                    message(a, "Non riesco a collegarmi", w->essid, REFRESH_PARTIAL);
+                    input_wait(3000, NULL);
+                    break;
+                }
+                char m[128];
+                snprintf(m, sizeof m, "Mi collego a «%s»…", w->essid); /* "8 · mi collego" */
+                wifi_message(a, "Scegli la rete Wi-Fi", m, "Ci vuole qualche secondo.", "indietro per annullare", 402);
+                full(a, REFRESH_PARTIAL);
+                int res = 0;
+                while (res == 0) {
+                    Key kk = input_wait(500, &raw);
+                    if (kk == K_BACK || kk == K_HOME || kk == K_MENU || kk == K_QUIT) {
+                        wifi_connect_cancel();
+                        res = -3;
+                        break;
+                    }
+                    res = wifi_connect_poll();
+                }
+                memset(pw, 0, sizeof pw) /* the password does not stay in memory */, (void)0;
+                if (res == 1) {
+                    log_msg("wifi: connected");
+                    return 1;
+                }
+                if (res == -1 && w->secured) { /* "9 · password sbagliata": try again */
+                    wrong = 1;
+                    continue;
+                }
+                if (res == -2) {
+                    message(a, "Non riesco a collegarmi", w->essid, REFRESH_PARTIAL);
+                    input_wait(3000, NULL);
+                }
+                break;
+            }
+        }
+    }
+}
+
 typedef struct {
     char title[200], author[200];
 } Arrived;
@@ -906,7 +1170,7 @@ typedef struct {
  * page; the phone sends the books there over Wi-Fi (src/ricevi.c, back end). The screen waits for the
  * Wi-Fi, then shows the code and what arrives. Returns 1 if books arrived (the Home reads the library
  * again), 2 to go back to the Kindle (timeout), 0 otherwise. */
-#define RX_WIFI_WAIT_S 30
+#define RX_WIFI_WAIT_S 10 /* then the list of the networks (Simone, 18 nov) */
 static int receive_run(App *a)
 {
     if (rx_start(a->books, a->name) != 0) {
@@ -919,9 +1183,20 @@ static int receive_run(App *a)
     Arrived got[3];
     int ngot = 0, total = 0, receiving = 0, percent = 0, redraw = 2, result = 0;
     char name[256] = "";
+    int sim_connected = 0;
     for (;;) {
         const char *url = rx_url()[0] ? rx_url() : rx_url_usb();
+        if (g_sim && getenv("CARBONELLA_SENZA_RETE") && !sim_connected)
+            url = "";
         int no_net = !url[0] && time(NULL) - started >= RX_WIFI_WAIT_S;
+        if (no_net || (g_sim && !url[0])) { /* "5 · scegli la rete" */
+            if (!wifi_choose(a))
+                break;
+            sim_connected = 1;
+            started = time(NULL);
+            redraw = 2;
+            continue;
+        }
         if (redraw) {
             Canvas *c = &a->cv;
             canvas_clear(c, G_CARTA);
@@ -1169,7 +1444,7 @@ static int set_change(App *a, int i, int dir)
 {
     switch (i) {
     case S_GOAL: a->goal_min = step(GOALS, NGOALS, a->goal_min, dir); break;
-    case S_YEAR: a->books_year = step(YEARS, NYEARS, a->books_year, dir); break;
+    case S_YEAR: a->books_year = year_step(a->books_year, dir); break;
     case S_STANDBY: a->standby_min = step(STANDBYS, NSTANDBYS, a->standby_min, dir); break;
     case S_BATTPCT: g_battery_pct = !g_battery_pct; break;
     case S_SIZE: a->lp.size = step(SIZES, NSIZES, a->lp.size, dir); break;
@@ -1569,7 +1844,7 @@ static int goals_run(App *a)
             if (sel == G_ROW_GOAL)
                 a->goal_min = step(GOALS, NGOALS, a->goal_min, dir);
             else
-                a->books_year = step(YEARS, NYEARS, a->books_year, dir);
+                a->books_year = year_step(a->books_year, dir);
             save_prefs(a);
             goals_draw(a, sel); /* bars, calendar and year depend on the goals */
             full(a, REFRESH_PARTIAL);

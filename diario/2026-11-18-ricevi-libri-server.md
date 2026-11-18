@@ -100,3 +100,9 @@ Provato nel cloud: lettura dell'elenco (virgolette nel nome, doppioni, nome vuot
 pulito. **Da verificare sul Kindle**: che `com.lab126.wifid enable 1` accenda davvero la radio, il formato
 di `createProfile` (sono le chiavi che usa KOReader sui Kindle) e cosa dice `cmState` con una password
 sbagliata.
+
+Terza prova del front end (16:05 UTC): `lipc-set-prop -i com.lab126.wifid enable 1` accende davvero la
+radio (wifid "On", compare `wlan0`, parte `wpa_supplicant`). Per spegnerla `enable 0` è servito due volte.
+Quindi ora Carbonella decide se il Wi-Fi è acceso guardando se `wlan0` esiste (non `wirelessEnable`, che
+può dire 1 a radio spenta), e all'uscita ripete lo spegnimento se `wlan0` c'è ancora. Il collegamento
+vero a una rete non è ancora stato provato: l'hotspot di Simone non era visibile.

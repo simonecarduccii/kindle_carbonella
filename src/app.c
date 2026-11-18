@@ -2388,7 +2388,8 @@ static const char *find_ci(const char *hay, size_t hn, const char *needle, size_
 static int search_run(App *a)
 {
     static char query[64];
-    if (!keyboard_run(a, a->book->title, "Cerca nel libro", query, sizeof query) || !query[0])
+    if (!keyboard_edit(a, a->book->title, "Cerca nel libro", NULL, "Scrivi la parola da cercare.", 0, 0, query, sizeof query) ||
+        !query[0])
         return 0;
     message(a, "Cerco nel libro…", query, REFRESH_PARTIAL);
     int max = 100, n = 0;
@@ -3262,7 +3263,7 @@ static int clean_name(char *s)
 static int create_collection(App *a, char *out, size_t n)
 {
     char name[64] = "";
-    if (!keyboard_run(a, a->name, "Crea nuova raccolta", name, sizeof name))
+    if (!keyboard_edit(a, a->name, "Crea nuova raccolta", NULL, "Scrivi il nome della raccolta.", 0, 0, name, sizeof name))
         return 0;
     if (!clean_name(name)) {
         message(a, "Nome non valido", "Scrivi almeno una lettera.", REFRESH_PARTIAL);
@@ -3555,8 +3556,27 @@ static int home_menu(App *a, LibEntry *focus, const char *folder)
     }
 }
 
-/* "Cerca un libro" (Simone, 18 nov): the keyboard key on the Home opens the keyboard, then the books whose
- * title or author contain the words, in the list style of the settings. Returns the chosen book. */
+/* "Cerca un libro" (Simone, 18 nov; Figma section "Tastiera in basso" 142:2679): the keyboard key on the
+ * Home opens the keyboard (142:2681), then the books whose title or author contain the words (142:2817:
+ * cover 48 x 64, title and author, the focus in negative) or "Nessun libro trovato" (142:2987). */
+#define BS_ROWS 6
+static void search_hint(App *a, const char *hint)
+{
+    int hw = font_text_width(FACE_MONO, 14, hint);
+    font_draw_text(&a->cv, FACE_MONO, 14, (a->W - hw) / 2, ui_baseline(FACE_MONO, 14, 758, 18), hint, G_CENERE, 0);
+}
+
+static void book_result_row(App *a, const LibEntry *e, int y, int focus)
+{
+    Canvas *c = &a->cv;
+    uint8_t ink = focus ? G_CARTA : G_NERO;
+    canvas_fill(c, 16, y, 568, 88, focus ? G_NERO : G_CARTA);
+    cover_draw(c, 36, y + 12, 48, 64, e->title, e->author, e->publisher, 0);
+    canvas_frame(c, 36, y + 12, 48, 64, 2, ink);
+    font_draw_text(c, FACE_SANS_MEDIUM, 20, 100, ui_baseline(FACE_SANS_MEDIUM, 20, y + 18.5f, 26), e->title, ink, 464);
+    font_draw_text(c, FACE_SANS, 16, 100, ui_baseline(FACE_SANS, 16, y + 48.5f, 21), e->author, ink, 464);
+}
+
 static LibEntry *book_search(App *a)
 {
     static char query[64];
@@ -3567,34 +3587,85 @@ static LibEntry *book_search(App *a)
             return NULL;
         size_t qn = strlen(query);
         int n = 0;
-        ListItem *items = xcalloc(a->lib.n ? a->lib.n : 1, sizeof *items);
         LibEntry **found = xcalloc(a->lib.n ? a->lib.n : 1, sizeof *found);
         for (int i = 0; i < a->lib.n; i++) {
             LibEntry *e = &a->lib.e[i];
-            if (find_ci(e->title, strlen(e->title), query, qn, 0) || find_ci(e->author, strlen(e->author), query, qn, 0)) {
-                items[n] = (ListItem){ e->title, e->author };
+            if (find_ci(e->title, strlen(e->title), query, qn, 0) || find_ci(e->author, strlen(e->author), query, qn, 0))
                 found[n++] = e;
-            }
         }
         log_msg("search: '%s' %d books", query, n);
-        if (n == 0) {
-            free(items);
+        char buf[200];
+        Canvas *c = &a->cv;
+        if (n == 0) { /* "3 · nessun libro" */
             free(found);
-            message(a, "Nessun libro trovato", query, REFRESH_PARTIAL);
-            input_wait(2000, NULL);
+            canvas_clear(c, G_CARTA);
+            ui_header(c, a->name, NULL, -1);
+            ui_title(c, 48, "Cerca un libro");
+            const char *m = "Nessun libro trovato";
+            int tw = font_text_width(FACE_SANS_MEDIUM, 24, m);
+            font_draw_text(c, FACE_SANS_MEDIUM, 24, (a->W - tw) / 2, ui_baseline(FACE_SANS_MEDIUM, 24, 390.5f, 31), m,
+                           G_NERO, 0);
+            snprintf(buf, sizeof buf, "Nessun titolo o autore contiene «%s». Prova con un'altra parola.", query);
+            text_centered_wrapped(c, FACE_SANS, 18, 433.5f, 23, 536, buf, G_NERO);
+            search_hint(a, "centro per cercare di nuovo, indietro per uscire");
+            full(a, REFRESH_PARTIAL);
+            for (;;) {
+                Key k = wait_key(a, NULL);
+                if (k == K_SELECT)
+                    break;
+                if (k == K_BACK || k == K_HOME || k == K_MENU || k == K_TIMEOUT || k == K_QUIT)
+                    return NULL;
+            }
             continue; /* back to the keyboard, the words stay */
         }
-        char title[96];
-        snprintf(title, sizeof title, n == 1 ? "1 libro" : "%d libri", n);
-        Key k;
-        int r = list_run(a, a->name, title, items, n, 0, &k);
-        LibEntry *e = r >= 0 ? found[r] : NULL;
-        free(items);
+        /* "2 · risultati" */
+        int sel = 0, shown = -1;
+        LibEntry *chosen = NULL;
+        for (;;) {
+            int page = sel / BS_ROWS;
+            if (page != shown) {
+                canvas_clear(c, G_CARTA);
+                ui_header(c, a->name, NULL, -1);
+                ui_title(c, 48, "Cerca un libro");
+                snprintf(buf, sizeof buf, n == 1 ? "1 libro" : "%d libri", n);
+                text_right(c, FACE_SANS, 16, 568, ui_baseline(FACE_SANS, 16, 83, 21), buf, G_CENERE);
+                snprintf(buf, sizeof buf, "Risultati per «%s»", query);
+                font_draw_text(c, FACE_SANS, 18, 32, ui_baseline(FACE_SANS, 18, 122, 23), buf, G_NERO, 536);
+                for (int r = 0; r < BS_ROWS && page * BS_ROWS + r < n; r++)
+                    book_result_row(a, found[page * BS_ROWS + r], 161 + r * 88, page * BS_ROWS + r == sel);
+                search_hint(a, "centro per aprire, indietro per cambiare la ricerca");
+                full(a, REFRESH_PARTIAL);
+                shown = page;
+            }
+            int old = sel;
+            Key k = wait_key(a, NULL);
+            if (k == K_UP)
+                sel = sel > 0 ? sel - 1 : n - 1;
+            else if (k == K_DOWN)
+                sel = sel < n - 1 ? sel + 1 : 0;
+            else if (k == K_NEXT)
+                sel = (page + 1) * BS_ROWS < n ? (page + 1) * BS_ROWS : sel;
+            else if (k == K_PREV)
+                sel = page > 0 ? (page - 1) * BS_ROWS : sel;
+            else if (k == K_SELECT || k == K_RIGHT) {
+                chosen = found[sel];
+                break;
+            } else if (k == K_BACK || k == K_LEFT)
+                break;
+            else if (k == K_HOME || k == K_MENU || k == K_TIMEOUT || k == K_QUIT) {
+                free(found);
+                return NULL;
+            }
+            if (sel / BS_ROWS == shown && sel != old) {
+                book_result_row(a, found[old], 161 + old % BS_ROWS * 88, 0);
+                book_result_row(a, found[sel], 161 + sel % BS_ROWS * 88, 1);
+                display_update(c, (Rect){ 16, 161 + old % BS_ROWS * 88, 568, 88 }, REFRESH_PARTIAL);
+                display_update(c, (Rect){ 16, 161 + sel % BS_ROWS * 88, 568, 88 }, REFRESH_PARTIAL);
+            }
+        }
         free(found);
-        if (e)
-            return e;
-        if (r == -2 && (k == K_HOME || k == K_TIMEOUT || k == K_QUIT))
-            return NULL;
+        if (chosen)
+            return chosen;
     }
 }
 

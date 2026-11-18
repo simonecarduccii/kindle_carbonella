@@ -376,13 +376,7 @@ void rx_stop(void)
         firewall(0);
     R.fw_open = 0;
     if (R.wifi_turned_on) /* back as it was: Wi-Fi costs battery */
-    {
-        run("lipc-set-prop -i com.lab126.wifid enable 0");
-        run("lipc-set-prop com.lab126.cmd wirelessEnable 0");
-        usleep(1000000); /* wlan0 goes away after a moment */
-        if (wifi_enabled() == 1) /* on the K4 the first "enable 0" is sometimes ignored (18 nov test) */
-            run("lipc-set-prop -i com.lab126.wifid enable 0");
-    }
+        wifi_radio_off();
     R.wifi_turned_on = 0;
     R.on = 0;
     R.url[0] = R.url_usb[0] = 0;

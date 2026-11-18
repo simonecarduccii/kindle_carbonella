@@ -375,11 +375,14 @@ typedef struct {
     int bars;    /* 3 Forte, 2 Medio, 1 Debole */
 } WifiNet;
 int wifi_radio_on(void); /* switches the radio on, also with the framework stopped */
+void wifi_radio_off(void); /* "Spegni wifi" (takes up to 2 s) */
 void wifi_scan(void);    /* asks for a new scan: read wifi_list() 4-6 s later */
 int wifi_list(WifiNet *out, int max); /* saved networks first, then by signal; same name only once */
 int wifi_parse_scan(const char *s, WifiNet *out, int max);
 /* Starts connecting. password: NULL for a saved network, "" for an open one, else the typed password
- * (saved on the Kindle, never in Carbonella's files or log). 0 = started, <0 = could not start. */
+ * (saved on the Kindle, never in Carbonella's files or log). 0 = started, <0 = could not start.
+ * WPA passwords are 8 to 63 characters: shorter ones fail as "wrong password". Accented letters and €
+ * go as UTF-8, as phones and routers do. */
 int wifi_connect(const char *essid, const char *password);
 /* Call every ~500 ms while "Mi collego a «…»…": 0 still trying, 1 connected (back to the QR),
  * -1 wrong password ("Password sbagliata, riprova."), -2 no connection (network gone, too far). */

@@ -900,127 +900,21 @@ static int text_centered_wrapped(Canvas *c, Face f, int size, int top, float lh,
 
 /* ------------------------------------------------- choosing the Wi-Fi network */
 
-/* "Tastiera password" (Figma, 18 nov): keys 50 x 56 every 54 px from x 32, rows every 64 px from y 216;
- * three layouts, the last row Aa · #+= · Spazio · Cancella · Fatto, 104 px each. */
-static const char *PW_KEYS[3][4][10] = {
-    { { "1", "2", "3", "4", "5", "6", "7", "8", "9", "0" },
-      { "q", "w", "e", "r", "t", "y", "u", "i", "o", "p" },
-      { "a", "s", "d", "f", "g", "h", "j", "k", "l", "'" },
-      { "z", "x", "c", "v", "b", "n", "m", ",", ".", "-" } },
-    { { "1", "2", "3", "4", "5", "6", "7", "8", "9", "0" },
-      { "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P" },
-      { "A", "S", "D", "F", "G", "H", "J", "K", "L", "'" },
-      { "Z", "X", "C", "V", "B", "N", "M", ",", ".", "-" } },
-    { { "1", "2", "3", "4", "5", "6", "7", "8", "9", "0" },
-      { "!", "@", "#", "$", "%", "&", "*", "(", ")", "?" },
-      { "_", "+", "=", "/", "\\", ":", ";", "\"", "~", "|" },
-      { "<", ">", "[", "]", "{", "}", "^", "`", "€", "£" } },
-};
-static const char *PW_LAST[5] = { "Aa", "#+=", "Spazio", "Cancella", "Fatto" };
+static int keyboard_edit(App *a, const char *header, const char *title, const char *note, const char *msg, int strong,
+                         int start_clear, char *buf, size_t n);
 
-static void pw_draw_key(App *a, int layout, int r, int c, int focus)
-{
-    int x, w, y = 216 + r * 64;
-    const char *l;
-    int active = 0;
-    if (r < 4) {
-        x = 32 + c * 54;
-        w = 50;
-        l = PW_KEYS[layout][r][c];
-    } else {
-        x = 32 + c * 108;
-        w = 104;
-        l = PW_LAST[c];
-        active = (c == 0 && layout == 1) || (c == 1 && layout == 2);
-    }
-    canvas_fill(&a->cv, x, y, w, 56, focus ? G_NERO : G_CARTA);
-    if (!focus)
-        canvas_frame(&a->cv, x, y, w, 56, active ? 4 : 2, G_NERO);
-    Face f = r < 4 ? FACE_SANS : FACE_SANS_MEDIUM;
-    int size = r < 4 ? 24 : 18;
-    int tw = font_text_width(f, size, l);
-    font_draw_text(&a->cv, f, size, x + (w - tw) / 2, ui_baseline(f, size, y + 12.5f, 31), l, focus ? G_CARTA : G_NERO,
-                   0);
-}
-
-/* "7 · password" / "9 · password sbagliata". Returns 1 with the password in buf, 0 if cancelled. */
+/* "7 · password" / "9 · password sbagliata" (the text stays, the focus starts on Cancella). */
 static int password_run(App *a, const char *essid, char *buf, size_t n, int wrong)
 {
-    int layout = 0, r = 1, c = 0, redraw = 2;
     for (;;) {
-        if (redraw) {
-            Canvas *cv = &a->cv;
-            canvas_clear(cv, G_CARTA);
-            ui_header(cv, a->name, NULL, -1);
-            ui_title(cv, 48, "Password");
-            text_right(cv, FACE_SANS, 16, 568, ui_baseline(FACE_SANS, 16, 83, 21), essid, G_CENERE);
-            canvas_frame(cv, 32, 128, 536, 56, 2, G_NERO);
-            int tw = font_text_width(FACE_SANS, 20, buf), x0 = 50;
-            if (tw > 500)
-                x0 -= tw - 500;
-            canvas_clip(cv, 34, 130, 532, 52);
-            int end = font_draw_text(cv, FACE_SANS, 20, x0, ui_baseline(FACE_SANS, 20, 143, 26), buf, G_NERO, 0);
-            canvas_noclip(cv);
-            canvas_fill(cv, end + 2, 142, 2, 28, G_NERO); /* cursor */
-            font_draw_text(cv, wrong ? FACE_SANS_MEDIUM : FACE_SANS, 16, 32, ui_baseline(FACE_SANS, 16, 190, 20),
-                           wrong ? "Password sbagliata, riprova." : "Scrivi la password della rete.", G_NERO, 0);
-            for (int i = 0; i < 5; i++)
-                for (int j = 0; j < (i < 4 ? 10 : 5); j++)
-                    pw_draw_key(a, layout, i, j, i == r && j == c);
-            const char *hint = "Frecce per scegliere, centro per scrivere, Indietro per annullare";
-            int hw = font_text_width(FACE_MONO, 14, hint);
-            font_draw_text(cv, FACE_MONO, 14, (a->W - hw) / 2, ui_baseline(FACE_MONO, 14, 758, 18), hint, G_CENERE,
-                           a->W - 32);
-            full(a, redraw == 2 ? REFRESH_FULL : REFRESH_PARTIAL);
-            redraw = 0;
-        }
-        int raw;
-        Key k = wait_key(a, &raw);
-        int cols = r < 4 ? 10 : 5;
-        switch (k) {
-        case K_UP:
-        case K_DOWN: {
-            int nr = (r + (k == K_DOWN ? 1 : 4)) % 5;
-            if (nr == 4)
-                c = c * 5 / 10; /* onto the wide keys below */
-            else if (r == 4)
-                c = c * 2;
-            r = nr;
-            break;
-        }
-        case K_LEFT: c = (c + cols - 1) % cols; break;
-        case K_RIGHT: c = (c + 1) % cols; break;
-        case K_SELECT: {
-            size_t l = strlen(buf);
-            if (r < 4) {
-                const char *t = PW_KEYS[layout][r][c];
-                if (l + strlen(t) < n)
-                    strcat(buf, t);
-                wrong = 0;
-            } else if (c == 0)
-                layout = layout == 1 ? 0 : 1;
-            else if (c == 1)
-                layout = layout == 2 ? 0 : 2;
-            else if (c == 2) {
-                if (l + 1 < n)
-                    strcat(buf, " ");
-            } else if (c == 3) {
-                while (l > 0 && ((unsigned char)buf[l - 1] & 0xC0) == 0x80)
-                    l--;
-                if (l > 0)
-                    buf[l - 1] = 0;
-            } else
-                return 1;
-            break;
-        }
-        case K_BACK:
-        case K_HOME:
-        case K_MENU:
-        case K_TIMEOUT:
-        case K_QUIT: return 0;
-        default: continue;
-        }
-        redraw = 1;
+        if (!keyboard_edit(a, a->name, "Password", essid,
+                           wrong ? "Password sbagliata, riprova." : "Scrivi la password della rete.", wrong, wrong, buf, n))
+            return 0;
+        if (strlen(buf) >= 8 && strlen(buf) <= 63)
+            return 1;
+        /* WPA wants 8 to 63 letters: say it before trying */
+        message(a, "Password troppo corta", "Le password Wi-Fi hanno almeno 8 caratteri.", REFRESH_PARTIAL);
+        input_wait(2500, NULL);
     }
 }
 
@@ -1039,11 +933,28 @@ static void wifi_message(App *a, const char *title, const char *msg, const char 
     font_draw_text(c, FACE_MONO, 14, (a->W - hw) / 2, ui_baseline(FACE_MONO, 14, 758, 18), hint, G_CENERE, 0);
 }
 
-/* "Lucchetto" 10 x 13: a 2 px shackle over a 10 x 7 body. */
+/* "Lucchetto" in the Wi-Fi rows, 12.5 x 16.3: a half ring (radius 5, 1.9 px) with two legs over a
+ * 12.5 x 8.8 body. */
 static void lock_icon(Canvas *c, int x, int y, uint8_t ink)
 {
-    canvas_frame(c, x + 1, y, 8, 8, 2, ink);
-    canvas_fill(c, x, y + 6, 10, 7, ink);
+    float cx = x + 6.3f, cy = y + 6.2f;
+    for (int j = 0; j < 7; j++)
+        for (int i = 0; i < 13; i++) {
+            int cov = 0;
+            for (int s = 0; s < 16; s++) {
+                float px = x + i + (s % 4 + 0.5f) / 4, py = y + j + (s / 4 + 0.5f) / 4;
+                float d = sqrtf((px - cx) * (px - cx) + (py - cy) * (py - cy));
+                if (py <= cy && d <= 5 && d >= 3.1f)
+                    cov++;
+            }
+            if (cov) {
+                uint8_t *p = c->px + (size_t)(y + j) * c->w + x + i;
+                *p = (uint8_t)(*p + (ink - *p) * cov / 16);
+            }
+        }
+    canvas_fill(c, x + 1, y + 6, 2, 2, ink);
+    canvas_fill(c, x + 9, y + 6, 2, 2, ink);
+    canvas_fill(c, x, y + 7, 13, 9, ink);
 }
 
 /* "5 · scegli la rete": returns 1 once connected (back to the QR), 0 to leave "Ricevi libri". */
@@ -1088,13 +999,15 @@ static int wifi_choose(App *a)
         ui_title(c, 48, "Scegli la rete Wi-Fi");
         font_draw_text(c, FACE_SANS, 18, 32, ui_baseline(FACE_SANS, 18, 130, 25),
                        "Il Kindle non è collegato. Scegli la rete da usare per ricevere i libri.", G_NERO, 536);
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < n; i++) { /* "Voce menu", Stato Wifi / Wifi Focus */
             int y = 171 + i * 56, f = i == sel;
             uint8_t ink = f ? G_CARTA : G_NERO;
-            ui_menu_row(c, 16, y, 568, nets[i].essid, "", ICON_NONE, f);
+            canvas_fill(c, 16, y, 568, 56, f ? G_NERO : G_CARTA);
+            ui_wifi_glyph(c, 36, y + 21, nets[i].bars, 0, ink, G_VELO);
+            font_draw_text(c, FACE_SANS_MEDIUM, 20, 71, ui_baseline(FACE_SANS_MEDIUM, 20, y + 15.5f, 25), nets[i].essid,
+                           ink, 470);
             if (nets[i].secured)
-                lock_icon(c, 523, y + 21, ink);
-            ui_wifi_glyph(c, 545, y + 21, nets[i].bars, 0, ink, f ? G_SMOG : G_LEGGERO);
+                lock_icon(c, 552, y + 20, ink);
         }
         ui_menu_row(c, 16, 171 + n * 56, 568, "Cerca di nuovo", "", ICON_ARROW, sel == n);
         const char *hint = "centro per collegarti, indietro per uscire";
@@ -1857,50 +1770,114 @@ static int goals_run(App *a)
 
 /* ------------------------------------------------------------ keyboard */
 
-/* On-screen keyboard for the 5-way pad (search, name of a collection). Returns 1 with the text
- * in buf, 0 if cancelled. */
-#define KB_ROWS 5
-#define KB_COLS 10
-#define KB_TOP 216
-#define KB_PITCH 64
-static const char *KB_KEYS[KB_ROWS - 1][KB_COLS] = {
-    { "q", "w", "e", "r", "t", "y", "u", "i", "o", "p" },
-    { "a", "s", "d", "f", "g", "h", "j", "k", "l", "'" },
-    { "z", "x", "c", "v", "b", "n", "m", ",", ".", "-" },
-    { "à", "è", "é", "ì", "ò", "ù", "?", "!", ":", ";" },
-};
-/* last row: Spazio (columns 0-4), Cancella (5-6), Fatto (7-9) */
-static int kb_last_key(int col) { return col < 5 ? 0 : col < 7 ? 1 : 2; }
-static const int KB_LAST_START[3] = { 0, 5, 7 }, KB_LAST_SPAN[3] = { 5, 2, 3 };
-static const char *KB_LAST_LABEL[3] = { "Spazio", "Cancella", "Fatto" };
-
-static void kb_key_rect(int r, int c, float *x, float *w)
+/* "Tastiera" (Figma 136:2828, Simone 18 nov), shared by Cerca nel libro, Crea nuova raccolta and the
+ * Wi-Fi password: keys 50 x 56 every 54 px from x 32, rows every 64 px from y 216; ⇪ caps lock, ⇧ one
+ * capital, ⌫ one letter back, #+= the symbols (then "abc"); Cancella (empties the field) and Fatto
+ * below at y 552, 266 px each. */
+enum { KK_CHAR, KK_CAPS, KK_SHIFT, KK_BKSP, KK_SYM, KK_SPACE, KK_CLEAR, KK_DONE };
+typedef struct {
+    int x, w, kind;
+    const char *label;
+} KbKey;
+#define KB_NROWS 6
+static int kb_row(int r, int mode, KbKey *out)
 {
-    float kw = 536.0f / KB_COLS;
-    if (r < KB_ROWS - 1) {
-        *x = 32 + c * kw;
-        *w = kw;
+    /* mode: 0 lower, 1 one capital, 2 caps lock, 3 symbols */
+    static const char *D = "1234567890";
+    static const char *LOW[3] = { "qwertyuiop", "asdfghjkl", "zxcvbnm" }, *UP[3] = { "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM" };
+    static const char *SYM1[10] = { "!", "@", "#", "$", "%", "&", "*", "(", ")", "?" };
+    static const char *SYM2[9] = { "_", "+", "=", "/", "\\", ":", ";", "\"", "~" };
+    static const char *SYM3[7] = { "à", "è", "é", "ì", "ò", "ù", "€" };
+    static char one[3][10][2];
+    int n = 0, x = 32;
+#define ADD(W, K, L) (out[n++] = (KbKey){ x, (W), (K), (L) }, x += (W) + 4)
+    if (r == 0) {
+        for (int i = 0; i < 10; i++) {
+            one[0][i][0] = D[i];
+            ADD(50, KK_CHAR, one[0][i]);
+        }
+    } else if (r == 1) {
+        for (int i = 0; i < 10; i++) {
+            if (mode == 3) {
+                ADD(50, KK_CHAR, SYM1[i]);
+            } else {
+                one[1][i][0] = (mode ? UP : LOW)[0][i];
+                ADD(50, KK_CHAR, one[1][i]);
+            }
+        }
+    } else if (r == 2) {
+        ADD(50, KK_CAPS, "");
+        for (int i = 0; i < 9; i++) {
+            if (mode == 3) {
+                ADD(50, KK_CHAR, SYM2[i]);
+            } else {
+                one[2][i][0] = (mode ? UP : LOW)[1][i];
+                ADD(50, KK_CHAR, one[2][i]);
+            }
+        }
+    } else if (r == 3) {
+        static char three[7][2];
+        ADD(77, KK_SHIFT, "");
+        for (int i = 0; i < 7; i++) {
+            if (mode == 3) {
+                ADD(50, KK_CHAR, SYM3[i]);
+            } else {
+                three[i][0] = (mode ? UP : LOW)[2][i];
+                ADD(50, KK_CHAR, three[i]);
+            }
+        }
+        ADD(77, KK_BKSP, "");
+    } else if (r == 4) {
+        ADD(104, KK_SYM, mode == 3 ? "abc" : "#+=");
+        ADD(50, KK_CHAR, "'");
+        ADD(212, KK_SPACE, "Spazio");
+        ADD(50, KK_CHAR, ",");
+        ADD(50, KK_CHAR, ".");
+        ADD(50, KK_CHAR, "-");
     } else {
-        int k = kb_last_key(c);
-        *x = 32 + KB_LAST_START[k] * kw;
-        *w = KB_LAST_SPAN[k] * kw;
+        ADD(266, KK_CLEAR, "Cancella");
+        ADD(266, KK_DONE, "Fatto");
     }
+#undef ADD
+    return n;
 }
 
-static void kb_draw_key(App *a, int r, int c, int focus)
+static int kb_row_y(int r) { return r < 5 ? 216 + r * 64 : 552; }
+
+static void kb_draw_one(App *a, int r, const KbKey *k, int focus, int active)
 {
-    float x, w;
-    kb_key_rect(r, c, &x, &w);
-    int ix = (int)lrintf(x) + 2, iw = (int)lrintf(w) - 4, y = KB_TOP + r * KB_PITCH;
-    canvas_fill(&a->cv, ix, y, iw, 56, focus ? G_NERO : G_CARTA);
+    Canvas *c = &a->cv;
+    int y = kb_row_y(r);
+    uint8_t ink = focus ? G_CARTA : G_NERO;
+    canvas_fill(c, k->x, y, k->w, 56, focus ? G_NERO : G_CARTA);
     if (!focus)
-        canvas_frame(&a->cv, ix, y, iw, 56, 2, G_NERO);
-    const char *l = r < KB_ROWS - 1 ? KB_KEYS[r][c] : KB_LAST_LABEL[kb_last_key(c)];
-    Face f = r < KB_ROWS - 1 ? FACE_SANS : FACE_SANS_MEDIUM;
-    int size = r < KB_ROWS - 1 ? 24 : 18;
-    int tw = font_text_width(f, size, l);
-    font_draw_text(&a->cv, f, size, ix + (iw - tw) / 2, ui_baseline(f, size, y + 14, 28), l,
-                   focus ? G_CARTA : G_NERO, 0);
+        canvas_frame(c, k->x, y, k->w, 56, active ? 4 : 2, G_NERO);
+    float ox = k->x + (k->w - 16) / 2.0f;
+    if (k->kind == KK_SHIFT || k->kind == KK_CAPS) { /* arrow, filled when active; caps has a bar under it */
+        float h = k->kind == KK_SHIFT ? 9 : 8, b = k->kind == KK_SHIFT ? 16 : 12.5f, oy = y + (k->kind == KK_SHIFT ? 20 : 19);
+        float pts[16] = { ox + 8, oy, ox + 16, oy + h, ox + 11.5f, oy + h, ox + 11.5f, oy + b, ox + 4.5f, oy + b,
+                          ox + 4.5f, oy + h, ox, oy + h, ox + 8, oy };
+        if (active && !focus)
+            canvas_polygon(c, pts, 7, ink);
+        canvas_polyline(c, pts, 8, 2, ink);
+        if (k->kind == KK_CAPS)
+            canvas_fill(c, (int)lrintf(ox + 4.5f), y + 34, 7, 3, ink);
+        return;
+    }
+    if (k->kind == KK_BKSP) { /* a key shape with a cross */
+        float bx = k->x + (k->w - 24) / 2.0f, by = y + 21;
+        float pts[12] = { bx + 7, by, bx + 24, by, bx + 24, by + 14, bx + 7, by + 14, bx, by + 7, bx + 7, by };
+        canvas_polyline(c, pts, 6, 2, ink);
+        float x1[4] = { bx + 11.5f, by + 4, bx + 17.5f, by + 10 }, x2[4] = { bx + 17.5f, by + 4, bx + 11.5f, by + 10 };
+        canvas_polyline(c, x1, 2, 2, ink);
+        canvas_polyline(c, x2, 2, 2, ink);
+        return;
+    }
+    int big = k->kind == KK_CHAR;
+    Face f = big ? FACE_SANS : FACE_SANS_MEDIUM;
+    int size = big ? 24 : 18;
+    int tw = font_text_width(f, size, k->label);
+    font_draw_text(c, f, size, k->x + (k->w - tw) / 2, ui_baseline(f, size, y + 12.5f, 31), k->label, ink, 0);
 }
 
 static void kb_draw_field(App *a, const char *buf)
@@ -1908,87 +1885,117 @@ static void kb_draw_field(App *a, const char *buf)
     canvas_fill(&a->cv, 32, 128, 536, 56, G_CARTA);
     canvas_frame(&a->cv, 32, 128, 536, 56, 2, G_NERO);
     int tw = font_text_width(FACE_SANS, 20, buf);
-    int x0 = 48, maxw = 536 - 40;
+    int x0 = 50, maxw = 536 - 40;
     if (tw > maxw) /* long text: show the end */
         x0 -= tw - maxw;
     canvas_clip(&a->cv, 34, 130, 532, 52);
-    int end = font_draw_text(&a->cv, FACE_SANS, 20, x0, ui_baseline(FACE_SANS, 20, 128 + 15.5f, 25), buf, G_NERO, 0);
+    int end = font_draw_text(&a->cv, FACE_SANS, 20, x0, ui_baseline(FACE_SANS, 20, 143, 26), buf, G_NERO, 0);
     canvas_noclip(&a->cv);
-    canvas_fill(&a->cv, end + 2, 128 + 14, 2, 28, G_NERO); /* cursor */
+    canvas_fill(&a->cv, end + 2, 142, 2, 28, G_NERO); /* cursor */
 }
 
-static int keyboard_run(App *a, const char *header, const char *title, char *buf, size_t n)
+/* The keyboard screen. note: small text right of the title (the Wi-Fi network), msg: the line under the
+ * field (medium when 'strong'), start_clear: focus on Cancella (wrong password). Returns 1 with the text
+ * in buf, 0 if cancelled. */
+static int keyboard_edit(App *a, const char *header, const char *title, const char *note, const char *msg, int strong,
+                         int start_clear, char *buf, size_t n)
 {
-    int r = 0, c = 0;
-    canvas_clear(&a->cv, G_CARTA);
-    ui_header(&a->cv, header, NULL, -1);
-    ui_title(&a->cv, 48, title);
-    kb_draw_field(a, buf);
-    for (int i = 0; i < KB_ROWS; i++)
-        for (int j = 0; j < KB_COLS; j++)
-            kb_draw_key(a, i, j, i == r && j == c);
-    const char *hint = "Frecce per scegliere, centro per scrivere, Indietro per annullare";
-    int hw = font_text_width(FACE_MONO, 14, hint);
-    font_draw_text(&a->cv, FACE_MONO, 14, (a->W - hw) / 2, 560, hint, G_CENERE, a->W - 32);
-    full(a, REFRESH_FULL);
+    int mode = 0, r = start_clear ? 5 : 1, c = 0, redraw = 2;
+    KbKey row[12];
     for (;;) {
-        int raw, or = r, oc = c, typed = 0;
+        if (redraw) {
+            Canvas *cv = &a->cv;
+            canvas_clear(cv, G_CARTA);
+            ui_header(cv, header, NULL, -1);
+            ui_title(cv, 48, title);
+            if (note)
+                text_right(cv, FACE_SANS, 16, 568, ui_baseline(FACE_SANS, 16, 83, 21), note, G_CENERE);
+            kb_draw_field(a, buf);
+            if (msg)
+                font_draw_text(cv, strong ? FACE_SANS_MEDIUM : FACE_SANS, 16, 32, ui_baseline(FACE_SANS, 16, 190, 20),
+                               msg, G_NERO, 536);
+            for (int i = 0; i < KB_NROWS; i++) {
+                int nk = kb_row(i, mode, row);
+                for (int j = 0; j < nk; j++) {
+                    int act = (row[j].kind == KK_SHIFT && mode == 1) || (row[j].kind == KK_CAPS && mode == 2);
+                    kb_draw_one(a, i, &row[j], i == r && j == c, act);
+                }
+            }
+            const char *hint = "Frecce per scegliere, centro per scrivere, Indietro per annullare";
+            int hw = font_text_width(FACE_MONO, 14, hint);
+            font_draw_text(cv, FACE_MONO, 14, (a->W - hw) / 2, ui_baseline(FACE_MONO, 14, 758, 18), hint, G_CENERE,
+                           a->W - 32);
+            full(a, redraw == 2 ? REFRESH_FULL : REFRESH_PARTIAL);
+            redraw = 0;
+        }
+        int raw;
         Key k = wait_key(a, &raw);
+        int nk = kb_row(r, mode, row);
         switch (k) {
-        case K_UP: r = (r + KB_ROWS - 1) % KB_ROWS; break;
-        case K_DOWN: r = (r + 1) % KB_ROWS; break;
-        case K_LEFT:
-            if (r == KB_ROWS - 1) {
-                int key = kb_last_key(c);
-                c = key == 0 ? KB_LAST_START[2] : KB_LAST_START[key - 1];
-            } else
-                c = (c + KB_COLS - 1) % KB_COLS;
+        case K_LEFT: c = (c + nk - 1) % nk; break;
+        case K_RIGHT: c = (c + 1) % nk; break;
+        case K_UP:
+        case K_DOWN: { /* the key of the next row nearest to the middle of this one */
+            int mid = row[c].x + row[c].w / 2;
+            r = (r + (k == K_DOWN ? 1 : KB_NROWS - 1)) % KB_NROWS;
+            KbKey nr[12];
+            int m = kb_row(r, mode, nr), best = 0, bd = 1 << 30;
+            for (int j = 0; j < m; j++) {
+                int d = abs(nr[j].x + nr[j].w / 2 - mid);
+                if (d < bd) {
+                    bd = d;
+                    best = j;
+                }
+            }
+            c = best;
             break;
-        case K_RIGHT:
-            if (r == KB_ROWS - 1) {
-                int key = kb_last_key(c);
-                c = key == 2 ? 0 : KB_LAST_START[key + 1];
-            } else
-                c = (c + 1) % KB_COLS;
-            break;
+        }
         case K_SELECT: {
             size_t l = strlen(buf);
-            if (r < KB_ROWS - 1) {
-                const char *s = KB_KEYS[r][c];
-                if (l + strlen(s) < n)
-                    strcat(buf, s);
-            } else if (kb_last_key(c) == 0) {
+            const KbKey *key = &row[c];
+            switch (key->kind) {
+            case KK_CHAR:
+                if (l + strlen(key->label) < n)
+                    strcat(buf, key->label);
+                if (mode == 1)
+                    mode = 0; /* ⇧: one capital only */
+                break;
+            case KK_SPACE:
                 if (l + 1 < n)
                     strcat(buf, " ");
-            } else if (kb_last_key(c) == 1) {
+                break;
+            case KK_BKSP:
                 while (l > 0 && ((unsigned char)buf[l - 1] & 0xC0) == 0x80) /* whole UTF-8 letter */
                     l--;
                 if (l > 0)
                     buf[l - 1] = 0;
-            } else
-                return 1;
-            typed = 1;
+                break;
+            case KK_CLEAR: buf[0] = 0; break;
+            case KK_SHIFT: mode = mode == 1 ? 0 : 1; break;
+            case KK_CAPS: mode = mode == 2 ? 0 : 2; break;
+            case KK_SYM: mode = mode == 3 ? 0 : 3; break;
+            case KK_DONE: return 1;
+            }
+            msg = msg && strong ? NULL : msg; /* the "wrong password" line goes once he types */
             break;
         }
         case K_BACK:
         case K_HOME:
-        case K_MENU: return 0;
+        case K_MENU:
         case K_TIMEOUT:
         case K_QUIT: return 0;
         default: continue;
         }
-        if (typed) {
-            kb_draw_field(a, buf);
-            display_update(&a->cv, (Rect){ 32, 128, 536, 56 }, REFRESH_PARTIAL);
-        }
-        if (r != or || c != oc) {
-            kb_draw_key(a, or, oc, 0);
-            kb_draw_key(a, r, c, 1);
-            display_update(&a->cv, (Rect){ 32, KB_TOP + or * KB_PITCH, 536, 56 }, REFRESH_PARTIAL);
-            if (r != or)
-                display_update(&a->cv, (Rect){ 32, KB_TOP + r * KB_PITCH, 536, 56 }, REFRESH_PARTIAL);
-        }
+        nk = kb_row(r, mode, row);
+        if (c >= nk)
+            c = nk - 1;
+        redraw = 1;
     }
+}
+
+static int keyboard_run(App *a, const char *header, const char *title, char *buf, size_t n)
+{
+    return keyboard_edit(a, header, title, NULL, NULL, 0, 0, buf, n);
 }
 
 /* ------------------------------------------------- pages of the whole book */

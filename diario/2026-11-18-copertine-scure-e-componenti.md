@@ -28,3 +28,7 @@ Simone: "aggiorna tutto questo lato del figma" e "metti in evoluzione tutto quel
 - `Cartella`, `Riga archivio` e `Riga libro` servono solo alla vista a elenco (`01 · Libreria Text`), che nel codice non c'è ancora: lasciati come sono.
 
 ![Raccolta griglia](img/2026-11-18-raccolta-griglia.png)
+
+## "Letto" invece di "Finito" (14:41)
+
+Sotto un libro finito Figma scriveva "Finito", il Kindle "Letto". Simone: "Letto mi piace". Cambiato in Figma (componente `Libro griglia` e Home), il codice era già così.

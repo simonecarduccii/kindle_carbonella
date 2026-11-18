@@ -75,6 +75,12 @@ typedef struct {
     int session_pages;
     double cal_bytes, cal_pages; /* calibration of bytes per page, from the chapters paginated */
     int cal_last_spine;
+    /* highlights (Simone, 18 nov): the saved ones of the open book, and the selection being made */
+    struct Highlight *hls;
+    int nhls;
+    TextMark sel;             /* kind 0 = no selection */
+    int caret_x, caret_top, caret_h; /* blinking cursor, caret_h 0 = none */
+    const char *foot;         /* text of the footer instead of "12 di 684" */
 } App;
 
 typedef enum { GO_LIBRARY, GO_READER, GO_EXIT } Next;
@@ -120,6 +126,7 @@ static void save_prefs(App *a)
     settings_set_int(&p, "lampeggio_ogni", a->flash_every);
     settings_set_int(&p, "libri_anno", a->books_year);
     settings_set_int(&p, "standby_minuti", a->standby_min);
+    settings_set_int(&p, "percentuale_batteria", g_battery_pct);
     settings_save(&p, a->prefs_path, "# Preferenze personali: valgono più di carbonella.conf e restano dopo gli aggiornamenti.");
     free_settings(&p);
 }
@@ -580,6 +587,9 @@ static void close_book(App *a)
 {
     chapter_free(a->ch);
     a->ch = NULL;
+    free(a->hls);
+    a->hls = NULL;
+    a->nhls = 0;
     book_close(a->book);
     a->book = NULL;
     a->pg.n = 0;
@@ -670,12 +680,23 @@ static int load_chapter(App *a, int spine, int which_page, uint32_t pos)
 static long day_number(long long t);
 static int page_has_bookmark(App *a);
 static void draw_bookmark_corner(App *a);
+static int page_marks(App *a, TextMark *out, int max);
 
 static void draw_page(App *a)
 {
     canvas_clear(&a->cv, G_CARTA);
+    TextMark marks[129];
+    int nm = page_marks(a, marks, 128);
+    if (a->sel.kind)
+        marks[nm++] = a->sel;
+    layout_marks = marks;
+    layout_nmarks = nm;
     if (a->ch && a->pg.n > 0)
         layout_page(&a->lp, a->ch, a->pg.starts[a->page], &a->cv);
+    layout_marks = NULL;
+    layout_nmarks = 0;
+    if (a->caret_h) /* "Evidenzia 1": 4 px bar, #222, the height of the line */
+        canvas_fill(&a->cv, a->caret_x, a->caret_top, 4, a->caret_h, G_GRAFITE);
     if (a->ch && a->ch->nblocks == 0)
         font_draw_text(&a->cv, FACE_ITALIC, 18, a->lp.margin_x, a->H / 2, "(pagina senza testo)", G_GRAFITE, 0);
     int p, t;
@@ -698,7 +719,8 @@ static void draw_page(App *a)
         font_draw_text(&a->cv, FACE_MONO, 16, x + 14, ui_baseline(FACE_MONO, 16, 15, 19.2f), t, G_CENERE, 0);
     } else
         a->goal_note_until = 0;
-    ui_progress(&a->cv, a->lp.margin_x, a->W - 2 * a->lp.margin_x, a->H, NULL, pos, NULL, percent_of(a) / 100.0,
+    ui_progress(&a->cv, a->lp.margin_x, a->W - 2 * a->lp.margin_x, a->H, NULL, a->foot ? a->foot : pos, NULL,
+                percent_of(a) / 100.0,
                 G_SMOG); /* track #999 since v0.6 */
 }
 
@@ -839,8 +861,8 @@ static void key_test(App *a);
 
 enum {
     S_GOALS, S_GOAL, S_YEAR, S_FONT, S_SIZE, S_LINE, S_MARGIN, S_VIEW, /* page 1, as in Figma */
-    S_CLIPS, S_SHOWARCH, S_DELARCH,                                    /* page 2, v1.0.4 */
-    S_NAME, S_WIFI, S_DATE, S_STANDBY, S_INFO, S_KINDLE,
+    S_SHOWARCH, S_DELARCH,                                             /* page 2, v1.0.4 */
+    S_NAME, S_WIFI, S_BATTPCT, S_DATE, S_STANDBY, S_INFO, S_KINDLE,
     S_N
 };
 
@@ -852,7 +874,7 @@ typedef struct {
 
 /* "04 · Impostazioni": header, title, groups (label + rows of 56 px), "Pagina 1 di 2" at the bottom.
  * Positions from the two frames: page 1 LETTURA label at 150, rows from 174; ASPETTO label at 370,
- * rows from 394. Page 2 ARCHIVIO label at 142, rows from 166; SISTEMA label at 354, rows from 378.
+ * rows from 394. Page 2 ARCHIVIO label at 142, rows from 166; SISTEMA label at 298, rows from 322 (18 nov).
  * Texts exactly as in the frames. */
 static const SetItem SET[S_N] = {
     { 0, 150, 174, "Lettura", "Guarda gli obiettivi", 0 }, /* texts verbatim from Figma */
@@ -863,11 +885,11 @@ static const SetItem SET[S_N] = {
     { 0, 0, 506, NULL, "Interlinea", 1 },
     { 0, 0, 562, NULL, "Margini", 1 },
     { 0, 0, 618, NULL, "Visualizzazione", 1 },
-    { 1, 142, 166, "Archivio", "Mostra sottolineature", 0 }, /* v1.0.4 */
-    { 1, 0, 222, NULL, "Mostra archivio", 0 },
-    { 1, 0, 278, NULL, "Elimina archivio definitivamente", 0 },
-    { 1, 354, 378, "Sistema", "Nome dispositivo", 0 },
-    { 1, 0, 434, NULL, "Wi-Fi", 0 },
+    { 1, 142, 166, "Archivio", "Mostra archivio", 0 }, /* Simone, 18 nov: "Mostra sottolineature" out */
+    { 1, 0, 222, NULL, "Elimina archivio definitivamente", 0 },
+    { 1, 298, 322, "Sistema", "Nome dispositivo", 0 },
+    { 1, 0, 378, NULL, "Wi-Fi", 0 },
+    { 1, 0, 434, NULL, "Mostra percentuale batteria", 1 }, /* Simone, 18 nov */
     { 1, 0, 490, NULL, "Data e ora", 0 },
     { 1, 0, 546, NULL, "Standby automatico dopo", 1 }, /* v0.6 */
     { 1, 0, 602, NULL, "Informazioni", 0 },
@@ -924,6 +946,7 @@ static void set_value(App *a, int i, char *out, size_t n)
         break;
     }
     case S_STANDBY: snprintf(out, n, "%d m", a->standby_min); break;
+    case S_BATTPCT: snprintf(out, n, "%s", g_battery_pct ? "Sì" : "No"); break;
     case S_INFO: snprintf(out, n, "v%s", CARBONELLA_VERSION); break;
     default: break;
     }
@@ -947,6 +970,7 @@ static int set_change(App *a, int i, int dir)
     case S_GOAL: a->goal_min = step(GOALS, NGOALS, a->goal_min, dir); break;
     case S_YEAR: a->books_year = step(YEARS, NYEARS, a->books_year, dir); break;
     case S_STANDBY: a->standby_min = step(STANDBYS, NSTANDBYS, a->standby_min, dir); break;
+    case S_BATTPCT: g_battery_pct = !g_battery_pct; break;
     case S_SIZE: a->lp.size = step(SIZES, NSIZES, a->lp.size, dir); break;
     case S_LINE: a->lp.line_pct = step(LINES, NLINES, a->lp.line_pct, dir); break;
     case S_MARGIN: a->lp.margin_x = step(MARGINS, 3, a->lp.margin_x, dir); break;
@@ -1013,23 +1037,13 @@ static int settings_run(App *a)
         } else if (k == K_DOWN) {
             sel = (sel + 1) % S_N;
         } else if (k == K_PREV) {
-            sel = page == 0 ? S_CLIPS : 0;
+            sel = page == 0 ? S_SHOWARCH : 0;
         } else if (k == K_NEXT) {
-            sel = page == 0 ? S_CLIPS : 0;
+            sel = page == 0 ? S_SHOWARCH : 0;
         } else if (k == K_SELECT || k == K_RIGHT || k == K_LEFT) {
             if (sel == S_KINDLE && k == K_SELECT) {
                 result = 2;
                 break;
-            }
-            if (sel == S_CLIPS && (k == K_SELECT || k == K_RIGHT)) {
-                if (clippings_entry(a)) {
-                    result = 4; /* the Kindle's highlights open in the reader */
-                    break;
-                }
-                message(a, "Nessuna sottolineatura", "Il Kindle non ha ancora salvato ritagli.", REFRESH_PARTIAL);
-                input_wait(2500, NULL);
-                shown = -1;
-                continue;
             }
             if (sel == S_SHOWARCH && (k == K_SELECT || k == K_RIGHT)) {
                 result = 3; /* the grid of the archive opens from the Home */
@@ -1561,71 +1575,36 @@ static void goto_page(App *a, int p)
     save_position(a);
 }
 
-/* "Vai a pagina…": the number changes with left/right (1), up/down (10), page keys (100). */
-static int goto_page_run(App *a)
-{
-    int cur, total;
-    book_pages(a, &cur, &total);
-    int p = cur;
-    int first = 1;
-    for (;;) {
-        canvas_clear(&a->cv, G_CARTA);
-        ui_header(&a->cv, a->book->title, NULL, -1);
-        ui_title(&a->cv, 48, "Vai a pagina…");
-        char num[16], of[32];
-        snprintf(num, sizeof num, "%d", p);
-        snprintf(of, sizeof of, "di %d", total);
-        int tw = font_text_width(FACE_MONO_MEDIUM, 64, num);
-        font_draw_text(&a->cv, FACE_MONO_MEDIUM, 64, (a->W - tw) / 2, 330, num, G_NERO, 0);
-        tw = font_text_width(FACE_MONO, 20, of);
-        font_draw_text(&a->cv, FACE_MONO, 20, (a->W - tw) / 2, 380, of, G_GRAFITE, 0);
-        static const char *hint[] = { "‹ ›  una pagina", "su e giù  dieci pagine", "tasti laterali  cento pagine",
-                                      "centro per andare, Indietro per annullare" };
-        for (int i = 0; i < 4; i++) {
-            int hw = font_text_width(FACE_MONO, 14, hint[i]);
-            font_draw_text(&a->cv, FACE_MONO, 14, (a->W - hw) / 2, 480 + i * 26, hint[i], G_CENERE, 0);
-        }
-        full(a, first ? REFRESH_FULL : REFRESH_PARTIAL);
-        first = 0;
-        int raw;
-        Key k = wait_key(a, &raw);
-        int d = k == K_RIGHT ? 1 : k == K_LEFT ? -1 : k == K_UP ? 10 : k == K_DOWN ? -10 : k == K_NEXT ? 100
-                : k == K_PREV ? -100 : 0;
-        if (d) {
-            p += d;
-            p = p < 1 ? 1 : p > total ? total : p;
-        } else if (k == K_SELECT) {
-            goto_page(a, p);
-            return 1;
-        } else if (k == K_BACK || k == K_MENU || k == K_HOME || k == K_TIMEOUT || k == K_QUIT)
-            return 0;
-    }
-}
-
 /* "Pagine del cartaceo": the pages of the paper edition, shown on the Home, written by hand (Simone,
  * 17 nov). Same keys as "Vai a pagina…"; 0 = not known (the value of the table or of the EPUB comes
  * back at the next reading of the library). */
+#define INK_555 170 /* #555 hints */
 static int print_pages_run(App *a)
 {
     LibEntry *e = a->entry;
     int p = e->print_pages > 0 ? e->print_pages : e->pages > 0 ? e->pages : 0; /* start near the screen pages */
     int first = 1;
     for (;;) {
+        /* "02 · Lettura · Pagine del cartaceo" (Simone, 18 nov): "< 158 >" Plex Mono Medium 64 centred,
+         * box top 232; caption Mono 18 black at 319; four hints Mono 14 #555 from 406, every 26 px */
         canvas_clear(&a->cv, G_CARTA);
         ui_header(&a->cv, a->book->title, NULL, -1);
         ui_title(&a->cv, 48, "Pagine del cartaceo");
-        char num[16];
-        snprintf(num, sizeof num, "%d", p);
+        char num[24];
+        snprintf(num, sizeof num, "< %d >", p);
         const char *of = p > 0 ? "pagine sulla Home" : "non note: sulla Home le pagine a schermo";
         int tw = font_text_width(FACE_MONO_MEDIUM, 64, num);
-        font_draw_text(&a->cv, FACE_MONO_MEDIUM, 64, (a->W - tw) / 2, 330, num, G_NERO, 0);
-        tw = font_text_width(FACE_MONO, 20, of);
-        font_draw_text(&a->cv, FACE_MONO, 20, (a->W - tw) / 2, 380, of, G_GRAFITE, a->W - 64);
+        font_draw_text(&a->cv, FACE_MONO_MEDIUM, 64, (a->W - tw) / 2, ui_baseline(FACE_MONO_MEDIUM, 64, 232, 83), num,
+                       G_NERO, 0);
+        tw = font_text_width(FACE_MONO, 18, of);
+        font_draw_text(&a->cv, FACE_MONO, 18, (a->W - tw) / 2, ui_baseline(FACE_MONO, 18, 319, 23), of, G_NERO,
+                       a->W - 64);
         static const char *hint[] = { "‹ ›  una pagina", "su e giù  dieci pagine", "tasti laterali  cento pagine",
-                                      "centro per salvare, Indietro per annullare" };
+                                      "centro per salvare, indietro per annullare" };
         for (int i = 0; i < 4; i++) {
             int hw = font_text_width(FACE_MONO, 14, hint[i]);
-            font_draw_text(&a->cv, FACE_MONO, 14, (a->W - hw) / 2, 480 + i * 26, hint[i], G_CENERE, 0);
+            font_draw_text(&a->cv, FACE_MONO, 14, (a->W - hw) / 2, ui_baseline(FACE_MONO, 14, 406 + i * 26, 18),
+                           hint[i], INK_555, 0);
         }
         full(a, first ? REFRESH_FULL : REFRESH_PARTIAL);
         first = 0;
@@ -1892,6 +1871,316 @@ static int search_run(App *a)
     return moved;
 }
 
+/* ---------------------------------------------------------- highlights */
+
+/* dati/evidenziazioni.tsv: path, spine, first byte, end byte, page, the text (Simone, 18 nov). */
+typedef struct Highlight {
+    int spine;
+    uint32_t start, end;
+    int page;
+    char text[400];
+} Highlight;
+
+#define MAX_HLS 500
+
+static void highlights_load(App *a)
+{
+    free(a->hls);
+    a->hls = NULL;
+    a->nhls = 0;
+    char path[700];
+    snprintf(path, sizeof path, "%s/evidenziazioni.tsv", a->data);
+    FILE *f = fopen(path, "r");
+    if (!f)
+        return;
+    char line[4096];
+    size_t pl = strlen(a->entry->path);
+    while (fgets(line, sizeof line, f) && a->nhls < MAX_HLS) {
+        if (strncmp(line, a->entry->path, pl) != 0 || line[pl] != '\t')
+            continue;
+        Highlight h = { 0 };
+        int off = 0;
+        if (sscanf(line + pl + 1, "%d\t%u\t%u\t%d\t%n", &h.spine, &h.start, &h.end, &h.page, &off) < 4 || !off)
+            continue;
+        snprintf(h.text, sizeof h.text, "%s", line + pl + 1 + off);
+        h.text[strcspn(h.text, "\r\n")] = 0;
+        a->hls = xrealloc(a->hls, (a->nhls + 1) * sizeof(Highlight));
+        a->hls[a->nhls++] = h;
+    }
+    fclose(f);
+}
+
+/* The saved highlights of the open chapter, as underlines. */
+static int page_marks(App *a, TextMark *out, int max)
+{
+    int n = 0;
+    for (int i = 0; i < a->nhls && n < max; i++)
+        if (a->hls[i].spine == a->spine)
+            out[n++] = (TextMark){ a->hls[i].start, a->hls[i].end, MARK_SAVED };
+    return n;
+}
+
+static void highlight_save(App *a, uint32_t start, uint32_t end)
+{
+    char path[700];
+    snprintf(path, sizeof path, "%s/evidenziazioni.tsv", a->data);
+    FILE *f = fopen(path, "a");
+    if (!f) {
+        log_msg("highlight: cannot write %s: %s", path, strerror(errno));
+        return;
+    }
+    char text[400];
+    size_t j = 0;
+    for (uint32_t i = start; i < end && i < a->ch->len && j + 1 < sizeof text; i++)
+        text[j++] = a->ch->text[i] == '\t' ? ' ' : a->ch->text[i];
+    while (j > 0 && j + 1 >= sizeof text - 1 && ((unsigned char)text[j - 1] & 0xC0) == 0x80)
+        j--; /* do not cut a letter */
+    if (j > 0 && j + 1 >= sizeof text - 1 && ((unsigned char)text[j - 1] & 0x80))
+        j--;
+    text[j] = 0;
+    int p, t;
+    book_pages(a, &p, &t);
+    fprintf(f, "%s\t%d\t%u\t%u\t%d\t%s\n", a->entry->path, a->spine, start, end, p, text);
+    fclose(f);
+    log_msg("highlight saved: spine %d bytes %u-%u", a->spine, start, end);
+    highlights_load(a);
+}
+
+/* Draws the page and collects its words. */
+static void page_words(App *a, WordList *wl)
+{
+    wl->n = 0;
+    layout_words = wl;
+    draw_page(a);
+    layout_words = NULL;
+}
+
+/* The word on the line above (dir -1) or below (+1) nearest to x. */
+static int word_on_line(const WordList *wl, int cur, int dir)
+{
+    int top = wl->w[cur].top, x = (wl->w[cur].x0 + wl->w[cur].x1) / 2;
+    int line = -1;
+    for (int i = cur + dir; i >= 0 && i < wl->n; i += dir)
+        if (wl->w[i].top != top) {
+            line = wl->w[i].top;
+            break;
+        }
+    if (line < 0)
+        return cur;
+    int best = cur, bd = 1 << 30;
+    for (int i = 0; i < wl->n; i++)
+        if (wl->w[i].top == line) {
+            int d = abs((wl->w[i].x0 + wl->w[i].x1) / 2 - x);
+            if (d < bd) {
+                bd = d;
+                best = i;
+            }
+        }
+    return best;
+}
+
+/* The cursor sits 7 px before a line, or in the middle of the space before a word. */
+static int caret_x(const WordList *wl, int cur)
+{
+    const WordBox *w = &wl->w[cur];
+    if (cur > 0 && wl->w[cur - 1].top == w->top)
+        return (wl->w[cur - 1].x1 + w->x0) / 2 - 2;
+    return w->x0 - 7;
+}
+
+/* "Inizia a evidenziare" (Simone, 18 nov; Figma "02 · Lettura · Evidenzia 1-3"): a cursor blinks at the
+ * start of the line in the middle of the page; the 5-way pad moves it by word (left/right) or line (up/
+ * down), the page keys turn the page within the chapter. Centre starts the selection (white on #222),
+ * the pad extends it, centre again saves it (it stays underlined), Indietro cancels. */
+#define CARET_BLINK_MS 600
+#define CARET_BLINKS 100 /* about a minute, then it stays on */
+static void highlight_run(App *a)
+{
+    WordList wl = { 0 };
+    int cur = -1, selecting = 0;
+    uint32_t anchor_s = 0, anchor_e = 0;
+    int blinks = 0, on = 1, first = 1;
+    a->sel.kind = 0;
+    for (;;) {
+        a->caret_h = 0;
+        a->sel.kind = 0;
+        a->foot = selecting ? "centro per salvare, indietro per annullare" : "centro per iniziare a evidenziare";
+        page_words(a, &wl);
+        if (wl.n == 0)
+            break;
+        if (cur < 0 || cur >= wl.n) { /* the first word of the line nearest to the middle of the page */
+            int best = 0, bd = 1 << 30;
+            for (int i = 0; i < wl.n; i++) {
+                int d = abs(wl.w[i].top + wl.w[i].lh / 2 - a->H / 2);
+                if (d < bd) {
+                    bd = d;
+                    best = i;
+                }
+            }
+            while (best > 0 && wl.w[best - 1].top == wl.w[best].top)
+                best--;
+            cur = best;
+        }
+        const WordBox *w = &wl.w[cur];
+        if (selecting) {
+            uint32_t s0 = anchor_s < w->start ? anchor_s : w->start;
+            uint32_t e0 = anchor_e > w->end ? anchor_e : w->end;
+            a->sel = (TextMark){ s0, e0, MARK_SELECTION };
+        } else if (on) {
+            a->caret_x = caret_x(&wl, cur); /* Figma: x 41 for a line starting at 48 */
+            a->caret_top = w->top;
+            a->caret_h = w->lh;
+        }
+        draw_page(a);
+        full(a, first ? REFRESH_FULL : REFRESH_PARTIAL);
+        first = 0;
+        int raw;
+        Key k;
+        if (!selecting && blinks < CARET_BLINKS) {
+            k = input_wait(CARET_BLINK_MS, &raw);
+            if (k == K_TIMEOUT) { /* blink: only the cursor changes */
+                on = !on;
+                blinks++;
+                a->caret_x = caret_x(&wl, cur);
+                a->caret_top = w->top;
+                a->caret_h = on ? w->lh : 0;
+                draw_page(a);
+                display_update(&a->cv, (Rect){ a->caret_x, w->top, 4, w->lh }, REFRESH_PARTIAL);
+                for (;;) {
+                    k = input_wait(CARET_BLINK_MS, &raw);
+                    if (k != K_TIMEOUT || ++blinks >= CARET_BLINKS)
+                        break;
+                    on = !on;
+                    a->caret_h = on ? w->lh : 0;
+                    draw_page(a);
+                    display_update(&a->cv, (Rect){ a->caret_x, w->top, 4, w->lh }, REFRESH_PARTIAL);
+                }
+                if (k == K_TIMEOUT) { /* stop blinking: the cursor stays */
+                    on = 1;
+                    continue;
+                }
+            }
+            if (k == K_SLEEP) {
+                standby(a);
+                continue;
+            }
+            if (k == K_WAKE)
+                continue;
+            touch_screensaver();
+        } else
+            k = wait_key(a, &raw);
+        on = 1;
+        if (k != K_NONE)
+            blinks = 0;
+        if (k == K_RIGHT)
+            cur = cur + 1 < wl.n ? cur + 1 : cur;
+        else if (k == K_LEFT)
+            cur = cur > 0 ? cur - 1 : cur;
+        else if (k == K_DOWN || k == K_UP)
+            cur = word_on_line(&wl, cur, k == K_DOWN ? 1 : -1);
+        else if (k == K_NEXT || k == K_PREV) { /* other page of the same chapter */
+            int np = a->page + (k == K_NEXT ? 1 : -1);
+            if (np >= 0 && np < a->pg.n) {
+                a->page = np;
+                cur = selecting ? (k == K_NEXT ? 0 : 1 << 20) : -1;
+                if (selecting && k == K_PREV) { /* the last word of the previous page */
+                    page_words(a, &wl);
+                    cur = wl.n - 1;
+                }
+                first = 1;
+            }
+        } else if (k == K_SELECT) {
+            if (!selecting) {
+                selecting = 1;
+                anchor_s = w->start;
+                anchor_e = w->end;
+            } else {
+                highlight_save(a, a->sel.start, a->sel.end);
+                break;
+            }
+        } else if (k == K_BACK || k == K_MENU || k == K_HOME || k == K_TIMEOUT || k == K_QUIT)
+            break;
+    }
+    a->sel.kind = 0;
+    a->caret_h = 0;
+    a->foot = NULL;
+    free(wl.w);
+    save_position(a);
+}
+
+/* "Evidenziazioni": the list of the saved highlights, choosing one goes there. */
+static int highlights_run(App *a)
+{
+    if (a->nhls == 0) {
+        message(a, "Nessuna evidenziazione", "Scegli «Inizia a evidenziare» dal menu.", REFRESH_PARTIAL);
+        input_wait(3000, NULL);
+        return 0;
+    }
+    int n = a->nhls;
+    ListItem *items = xcalloc(n, sizeof(ListItem));
+    char (*vals)[24] = xcalloc(n, 24);
+    for (int i = 0; i < n; i++) {
+        snprintf(vals[i], 24, "pag. %d", a->hls[i].page);
+        items[i].label = a->hls[i].text;
+        items[i].value = vals[i];
+    }
+    int r = list_run(a, a->book->title, "Evidenziazioni", items, n, 0, NULL);
+    int moved = 0;
+    if (r >= 0 && a->hls[r].spine < a->book->nspine && load_chapter(a, a->hls[r].spine, 1, a->hls[r].start) == 0) {
+        save_position(a);
+        moved = 1;
+    }
+    free(vals);
+    free(items);
+    return moved;
+}
+
+/* Right/left of the pad while reading (Simone, 18 nov): next/previous chapter; left goes first to the
+ * start of the chapter on screen. A book in one piece moves 10 pages at a time. */
+static void chapter_jump(App *a, int dir)
+{
+    Book *b = a->book;
+    if (b->nspine <= 1) {
+        int p, t;
+        book_pages(a, &p, &t);
+        p += dir * 10;
+        goto_page(a, p < 1 ? 1 : p > t ? t : p);
+        return;
+    }
+    int target = -1;
+    int have_toc = 0; /* a table of contents that names several spine items */
+    for (int i = 1; i < b->ntoc; i++)
+        if (b->toc[i].spine != b->toc[0].spine)
+            have_toc = 1;
+    if (have_toc) {
+        int here = -1; /* start of the chapter on screen */
+        for (int i = 0; i < b->ntoc; i++)
+            if (b->toc[i].spine <= a->spine && b->toc[i].spine > here)
+                here = b->toc[i].spine;
+        if (dir > 0) {
+            for (int i = 0; i < b->ntoc; i++)
+                if (b->toc[i].spine > a->spine && (target < 0 || b->toc[i].spine < target))
+                    target = b->toc[i].spine;
+        } else if (here >= 0 && (here < a->spine || a->page > 0))
+            target = here;
+        else
+            for (int i = 0; i < b->ntoc; i++)
+                if (b->toc[i].spine < a->spine && b->toc[i].spine > target)
+                    target = b->toc[i].spine;
+    } else if (dir > 0)
+        target = a->spine + 1 < b->nspine ? a->spine + 1 : -1;
+    else
+        target = a->page > 0 ? a->spine : a->spine - 1;
+    if (target < 0 || target >= b->nspine)
+        return;
+    if (target == a->spine)
+        a->page = 0;
+    else if (load_chapter(a, target, 0, 0) != 0)
+        return;
+    log_msg("chapter %s: spine %d", dir > 0 ? "next" : "previous", a->spine);
+    save_position(a);
+}
+
 /* "02 · Lettura Menù" (Pannello menu, Property 1=Libro): the panel opens over the page, which stays
  * visible above it; texts, values and icons exactly as in Figma. Returns where to go after the menu,
  * or -1 to keep reading. */
@@ -1899,14 +2188,14 @@ static int reader_menu(App *a)
 {
     a->goal_note_until = 0; /* the note is not redrawn over the menu */
     int sel = 0;
-    enum { M_MARK, M_SEARCH, M_SIZE, M_GOTO, M_MARKS, M_TOC, M_PRINT, M_N };
-    Row rows[M_N] = {
+    enum { M_MARK, M_HIGHLIGHT, M_SEARCH, M_SIZE, M_MARKS, M_HLS, M_PRINT, M_N };
+    Row rows[M_N] = { /* Simone, 18 nov: "Vai a pagina…" and "Indice" out, the highlights in */
         { "Aggiungi segnalibro", "", ICON_PLUS },
+        { "Inizia a evidenziare", "", ICON_PLUS },
         { "Cerca nel libro", "", ICON_ARROW },
         { "Dimensione carattere", "", ICON_NONE },
-        { "Vai a pagina…", "", ICON_ARROW },
         { "Segnalibri", "", ICON_ARROW },
-        { "Indice", "", ICON_ARROW },
+        { "Evidenziazioni", "", ICON_ARROW },
         { "Pagine del cartaceo", "", ICON_ARROW }, /* Simone, 17 nov: written by hand */
     };
     int redraw = 1;
@@ -1920,7 +2209,10 @@ static int reader_menu(App *a)
         int p, t;
         book_pages(a, &p, &t);
         snprintf(rows[M_SIZE].value, sizeof rows[M_SIZE].value, "%d pt", a->lp.size);
-        snprintf(rows[M_GOTO].value, sizeof rows[M_GOTO].value, "pag. %d di %d", p, t);
+        if (a->nhls)
+            snprintf(rows[M_HLS].value, sizeof rows[M_HLS].value, "%d", a->nhls);
+        else
+            rows[M_HLS].value[0] = 0;
         if (a->entry->print_pages > 0)
             snprintf(rows[M_PRINT].value, sizeof rows[M_PRINT].value, "%d", a->entry->print_pages);
         else
@@ -1948,9 +2240,9 @@ static int reader_menu(App *a)
             continue;
         case M_MARK: bookmark_toggle(a); return -1;
         case M_SEARCH: search_run(a); return -1;
-        case M_GOTO: goto_page_run(a); return -1;
+        case M_HIGHLIGHT: highlight_run(a); return -1;
         case M_MARKS: bookmarks_run(a); return -1;
-        case M_TOC: show_toc(a); return -1;
+        case M_HLS: highlights_run(a); return -1;
         case M_PRINT: print_pages_run(a); return -1;
         case PANEL_END: return k == K_HOME ? GO_LIBRARY : GO_EXIT;
         default: return -1;
@@ -1989,6 +2281,7 @@ static Next run_reader(App *a)
     /* skip empty chapters (cover pages with only an image) at the very beginning */
     while (a->entry->percent < 0 && a->ch->nblocks == 0 && a->spine + 1 < a->book->nspine)
         load_chapter(a, a->spine + 1, 0, 0);
+    highlights_load(a);
     a->session_start = a->last_turn = time(NULL);
     a->session_pages = 0;
     if (a->goal_min > 0 && minutes_today(a) >= a->goal_min) /* already reached today: no announcement */
@@ -1999,10 +2292,15 @@ static Next run_reader(App *a)
     for (;;) {
         int raw;
         Key k = wait_key(a, &raw);
-        if (k == K_NEXT || k == K_RIGHT || k == K_DOWN)
+        if (k == K_NEXT || k == K_DOWN)
             turn(a, +1);
-        else if (k == K_PREV || k == K_LEFT || k == K_UP)
+        else if (k == K_PREV || k == K_UP)
             turn(a, -1);
+        else if (k == K_RIGHT || k == K_LEFT) {
+            chapter_jump(a, k == K_RIGHT ? 1 : -1);
+            a->turns = 0;
+            render_page(a, REFRESH_FULL);
+        }
         else if (k == K_MENU || k == K_SELECT) {
             int r = reader_menu(a);
             if (r >= 0) {
@@ -3025,6 +3323,7 @@ int main(int argc, char **argv)
     a->sort = settings_int(&a->cfg, "ordina", 0);
     a->books_year = settings_int(&a->cfg, "libri_anno", 12);
     a->standby_min = settings_int(&a->cfg, "standby_minuti", 5);
+    g_battery_pct = settings_int(&a->cfg, "percentuale_batteria", 1) != 0;
     if (a->sort < 0 || a->sort > 2)
         a->sort = 0;
 

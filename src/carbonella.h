@@ -159,6 +159,7 @@ int font_draw_text(Canvas *c, Face f, int size, int x, int baseline, const char 
 
 /* -------------------------------------------------------------------- ui */
 
+extern int g_battery_pct; /* "Mostra percentuale batteria": the % next to the battery icon */
 extern int g_sim; /* simulator: fixed clock (21:40) and battery (100%), as in the Figma frames */
 
 typedef enum { ICON_NONE, ICON_ARROW, ICON_PLUS } MenuIcon;
@@ -266,6 +267,25 @@ typedef struct {
 TextPos layout_page(const LayoutParams *lp, const Chapter *ch, TextPos from, Canvas *c);
 void paginate(const LayoutParams *lp, const Chapter *ch, Pagination *out);
 int pagination_find(const Pagination *p, uint32_t pos); /* page that contains byte pos */
+/* Highlighting (Simone, 18 nov). While a page is drawn, layout_words (if set) receives every word with
+ * its box, and the byte ranges in layout_marks are drawn as a selection (white on #222) or as a saved
+ * highlight (2 px underline). */
+typedef struct {
+    uint32_t start, end; /* bytes of the word in Chapter.text */
+    int x0, x1, top, lh; /* box on the page: line top and line height */
+} WordBox;
+typedef struct {
+    WordBox *w;
+    int n, cap;
+} WordList;
+enum { MARK_SELECTION = 1, MARK_SAVED = 2 };
+typedef struct {
+    uint32_t start, end;
+    int kind;
+} TextMark;
+extern WordList *layout_words;
+extern const TextMark *layout_marks;
+extern int layout_nmarks;
 /* Italian syllables: marks pts[i] = 1 where a word of n code points may be split before letter i. */
 void hyphen_points_it(const uint32_t *cps, int n, uint8_t *pts);
 

@@ -12,6 +12,32 @@
 
 #include <string.h>
 
+WordList *layout_words;
+const TextMark *layout_marks;
+int layout_nmarks;
+
+/* The mark covering byte i, 0 if none (a selection wins over a saved highlight). */
+static int mark_at(uint32_t i)
+{
+    int k = 0;
+    for (int m = 0; m < layout_nmarks; m++)
+        if (i >= layout_marks[m].start && i < layout_marks[m].end && layout_marks[m].kind > k)
+            k = layout_marks[m].kind;
+    return k;
+}
+
+static void add_word(uint32_t start, uint32_t end, int x0, int x1, int top, int lh)
+{
+    WordList *wl = layout_words;
+    if (!wl || end <= start)
+        return;
+    if (wl->n == wl->cap) {
+        wl->cap = wl->cap ? wl->cap * 2 : 256;
+        wl->w = xrealloc(wl->w, wl->cap * sizeof(WordBox));
+    }
+    wl->w[wl->n++] = (WordBox){ start, end, x0, x1, top, lh };
+}
+
 typedef struct {
     uint32_t start, end, next; /* text range drawn; where the next line starts */
     int width64;               /* natural width */
@@ -274,7 +300,7 @@ static void break_line(const Chapter *ch, const Block *bk, const BlockStyle *bs,
 }
 
 static void draw_line(Canvas *c, const Chapter *ch, const BlockStyle *bs, const Line *ln, int x, int avail,
-                      int baseline)
+                      int baseline, int top)
 {
     const unsigned char *t = (const unsigned char *)ch->text;
     int x64 = x << 6;
@@ -291,27 +317,53 @@ static void draw_line(Canvas *c, const Chapter *ch, const BlockStyle *bs, const 
     uint32_t prev = 0;
     int prev_face = -1;
     Face f = FACE_REGULAR;
+    uint32_t wstart = ln->start;
+    int wx = x64 >> 6, lh = bs->lh;
     for (uint32_t i = ln->start; i < ln->end;) {
         uint32_t cp;
         int l = utf8_decode(t + i, ln->end - i, &cp);
         f = face_of(ch->style[i], bs->bold);
         if ((int)f != prev_face)
             prev = 0;
+        int mk = layout_nmarks ? mark_at(i) : 0;
+        int x0 = x64 >> 6;
         if (cp == ' ') {
+            add_word(wstart, i, wx, x0, top, lh);
             x64 += font_advance(f, bs->size, 0, ' ') + extra64 + (rem > 0 ? 1 : 0);
             if (rem > 0)
                 rem--;
             prev = 0;
+            wstart = i + l;
+            wx = x64 >> 6;
+            /* a space inside a mark joins the two words */
+            if (mk == MARK_SELECTION)
+                canvas_fill(c, x0, top + 3, (x64 >> 6) - x0, lh - 5, G_GRAFITE);
+            else if (mk == MARK_SAVED)
+                canvas_fill(c, x0, top + lh - 2, (x64 >> 6) - x0, 2, G_NERO);
         } else {
             int adv = font_advance(f, bs->size, prev, cp);
             int kern = adv - font_advance(f, bs->size, 0, cp);
-            font_draw(c, f, bs->size, x64 + kern, baseline, cp, INK_BLACK);
+            uint8_t ink = INK_BLACK;
+            if (mk) {
+                /* Figma "Evidenzia 2/3": the box reaches a little past the first and the last letter (4 px in Figma,
+                 * 2 here: a tight justified space must not cover the next word) */
+                int pad_l = i == 0 || !mark_at(i - 1) ? 2 : 0;
+                int pad_r = !mark_at(i + l) ? 2 : 0;
+                int w = ((x64 + adv) >> 6) - x0 + 1;
+                if (mk == MARK_SELECTION) {
+                    canvas_fill(c, x0 - pad_l, top + 3, w + pad_l + pad_r, lh - 5, G_GRAFITE);
+                    ink = G_CARTA;
+                } else
+                    canvas_fill(c, x0 - pad_l, top + lh - 2, w + pad_l + pad_r, 2, G_NERO);
+            }
+            font_draw(c, f, bs->size, x64 + kern, baseline, cp, ink);
             x64 += adv;
             prev = cp;
         }
         prev_face = f;
         i += l;
     }
+    add_word(wstart, ln->end, wx, x64 >> 6, top, lh);
     if (ln->hyphen)
         font_draw(c, f, bs->size, x64, baseline, '-', INK_BLACK);
 }
@@ -363,7 +415,7 @@ TextPos layout_page(const LayoutParams *lp, const Chapter *ch, TextPos from, Can
             break_line(ch, bk, &bs, p.pos, width - indent, lp->hyphenate && bs.align != 2 && hyph_run < 2, &ln);
             hyph_run = ln.hyphen ? hyph_run + 1 : 0;
             if (c)
-                draw_line(c, ch, &bs, &ln, lp->margin_x + indent, width - indent, y + base);
+                draw_line(c, ch, &bs, &ln, lp->margin_x + indent, width - indent, y + base, y);
             y += bs.lh;
             p.pos = ln.next;
             fresh = 0;

@@ -15,6 +15,7 @@
 #include <strings.h>
 #include <time.h>
 
+int g_battery_pct = 1;
 int g_sim; /* simulator: fixed clock and battery, so screenshots can be compared with Figma */
 
 /* Baseline of a line of text whose line box starts at 'top' and is 'lh' tall, as CSS does it. */
@@ -116,7 +117,7 @@ void ui_header(Canvas *c, const char *left, const char *center, double bar)
         canvas_polygon(c, pts, 6, G_NERO);
     }
     char buf[16];
-    if (pct >= 0) {
+    if (pct >= 0 && g_battery_pct) {
         snprintf(buf, sizeof buf, "%d%%", pct);
         x -= 6 + font_text_width(FACE_MONO, 16, buf);
         font_draw_text(c, FACE_MONO, 16, x, base, buf, G_GRAFITE, 0);

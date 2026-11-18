@@ -250,11 +250,9 @@ static void touch_screensaver(void)
         log_msg("touchScreenSaverTimeout failed");
 }
 
-/* Simone (17 nov): the automatic standby must not start while he is reading. With a book open the
- * "Standby automatico dopo" timer is replaced by READING_STANDBY_MS without keys, a safety net for a
- * reader who fell asleep. Meanwhile powerd's own timer (about 10 min) is touched every
- * READING_TOUCH_MS, so it cannot fire in the middle of a long page either. */
-#define READING_STANDBY_MS (30 * 60000)
+/* Simone (18 nov, "rimetti standby automatico"): "Standby automatico dopo" applies while reading too
+ * (on 17 nov it had been replaced by 30 minutes with a book open). powerd's own timer (about 10 min) is
+ * still touched every READING_TOUCH_MS while waiting, so only our timer decides. */
 #define READING_TOUCH_MS (4 * 60000)
 
 /* "Standby automatico dopo": no key for standby_min minutes. powerd on the K4 has no lipc property for
@@ -262,7 +260,7 @@ static void touch_screensaver(void)
  * goingToScreenSaver and the cover appears as usual. */
 static int auto_standby(App *a)
 {
-    log_msg("no key for %d min: standby", a->book ? READING_STANDBY_MS / 60000 : a->standby_min);
+    log_msg("no key for %d min: standby", a->standby_min);
     if (system("powerd_test -p >/dev/null 2>&1") != 0) {
         log_msg("powerd_test -p failed");
         return -1;
@@ -304,7 +302,7 @@ static Key wait_key(App *a, int *raw)
 {
     int t = a->standby_seen ? -1 : a->idle_ms, sb = 0;
     int reading = a->book != NULL;
-    int limit = reading ? READING_STANDBY_MS : a->standby_min * 60000;
+    int limit = a->standby_min * 60000;
     if (!g_sim && limit > 0 && (t < 0 || limit < t)) {
         t = limit;
         sb = 1;
@@ -3606,7 +3604,7 @@ static LibEntry *book_search(App *a)
             font_draw_text(c, FACE_SANS_MEDIUM, 24, (a->W - tw) / 2, ui_baseline(FACE_SANS_MEDIUM, 24, 390.5f, 31), m,
                            G_NERO, 0);
             snprintf(buf, sizeof buf, "Nessun titolo o autore contiene «%s». Prova con un'altra parola.", query);
-            text_centered_wrapped(c, FACE_SANS, 18, 433.5f, 23, 536, buf, G_NERO);
+            text_centered_wrapped(c, FACE_SANS, 18, 434, 23, 536, buf, G_NERO);
             search_hint(a, "centro per cercare di nuovo, indietro per uscire");
             full(a, REFRESH_PARTIAL);
             for (;;) {

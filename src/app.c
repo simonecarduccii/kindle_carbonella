@@ -902,18 +902,16 @@ static int text_centered_wrapped(Canvas *c, Face f, int size, int top, float lh,
 
 static int keyboard_edit(App *a, const char *header, const char *title, const char *note, const char *msg, int strong,
                          int start_clear, char *buf, size_t n);
-/* The keys start at y 216 (Cerca nel libro, Crea nuova raccolta) or 350 (Password, Simone 18 nov). */
-static int kb_top = 216;
+/* The keys start at y 350, at the bottom of the screen everywhere (Simone, 18 nov). */
+static int kb_top = 350;
 
 /* "7 · password" / "9 · password sbagliata" (the text stays, the focus starts on Cancella). */
 static int password_run(App *a, const char *essid, char *buf, size_t n, int wrong)
 {
     for (;;) {
-        kb_top = 350;
         int ok = keyboard_edit(a, a->name, "Password", essid,
                                wrong ? "Password sbagliata, riprova." : "Scrivi la password della rete.", wrong, wrong,
                                buf, n);
-        kb_top = 216;
         if (!ok)
             return 0;
         if (strlen(buf) >= 8 && strlen(buf) <= 63)
@@ -3557,6 +3555,49 @@ static int home_menu(App *a, LibEntry *focus, const char *folder)
     }
 }
 
+/* "Cerca un libro" (Simone, 18 nov): the keyboard key on the Home opens the keyboard, then the books whose
+ * title or author contain the words, in the list style of the settings. Returns the chosen book. */
+static LibEntry *book_search(App *a)
+{
+    static char query[64];
+    for (;;) {
+        if (!keyboard_edit(a, a->name, "Cerca un libro", NULL, "Scrivi il titolo o l'autore.", 0, 0, query,
+                           sizeof query) ||
+            !query[0])
+            return NULL;
+        size_t qn = strlen(query);
+        int n = 0;
+        ListItem *items = xcalloc(a->lib.n ? a->lib.n : 1, sizeof *items);
+        LibEntry **found = xcalloc(a->lib.n ? a->lib.n : 1, sizeof *found);
+        for (int i = 0; i < a->lib.n; i++) {
+            LibEntry *e = &a->lib.e[i];
+            if (find_ci(e->title, strlen(e->title), query, qn, 0) || find_ci(e->author, strlen(e->author), query, qn, 0)) {
+                items[n] = (ListItem){ e->title, e->author };
+                found[n++] = e;
+            }
+        }
+        log_msg("search: '%s' %d books", query, n);
+        if (n == 0) {
+            free(items);
+            free(found);
+            message(a, "Nessun libro trovato", query, REFRESH_PARTIAL);
+            input_wait(2000, NULL);
+            continue; /* back to the keyboard, the words stay */
+        }
+        char title[96];
+        snprintf(title, sizeof title, n == 1 ? "1 libro" : "%d libri", n);
+        Key k;
+        int r = list_run(a, a->name, title, items, n, 0, &k);
+        LibEntry *e = r >= 0 ? found[r] : NULL;
+        free(items);
+        free(found);
+        if (e)
+            return e;
+        if (r == -2 && (k == K_HOME || k == K_TIMEOUT || k == K_QUIT))
+            return NULL;
+    }
+}
+
 /* Index of the book to focus: 'focus' if given, else the one being read, else the first book. */
 static int initial_sel(const Cell *cells, int n, const LibEntry *focus)
 {
@@ -3645,6 +3686,16 @@ static int grid_view(App *a, const char *folder, int read_view, LibEntry *focus)
             int r = grid_view(a, c->kind == CELL_FOLDER ? c->name : NULL, c->kind == CELL_READ, NULL);
             if (r != -1) {
                 result = r;
+                goto out;
+            }
+            redraw = 1;
+            continue;
+        }
+        case K_KEYBOARD: { /* "Cerca un libro" */
+            LibEntry *e = book_search(a);
+            if (e) {
+                g_selected = e;
+                result = GO_READER;
                 goto out;
             }
             redraw = 1;

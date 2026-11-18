@@ -31,8 +31,8 @@ del collaudo. Le novità sono elencate nel [CHANGELOG](../CHANGELOG.md#v120--202
 
 - `make prova` funziona senza errori e la build ARM compila. Il pacchetto è `carbonella-v1.2.0.zip`, nella
   cartella *rilasci* del progetto.
-- Sul Kindle è installata la d6d663e (Obiettivi). L'ultimo pezzo, Cerca un libro, aspetta che il Kindle sia
-  di nuovo collegato: lo installa il front end.
+- **Sul Kindle (18 nov 17:20 UTC)**: il front end ha installato la 1.2.0 (d4502e3), che gira. Unico avanzo, un
+  avviso innocuo del compilatore in `src/app.c` (433.5 diventa int), da sistemare nel prossimo commit del front end.
 - Nello stesso giro ho unito al ramo di rilascio i diari che stavano solo sui rami del design (37 commit) e
   del collaudo (2 commit). Così il diario completo è in un ramo solo.
 

@@ -324,4 +324,48 @@ void library_save_positions(const Library *lib, const char *data_dir);
 LibEntry *library_find(Library *lib, const char *path);
 void reading_log(const char *data_dir, const char *path, long long start, long long end, int pages);
 
+/* -------------------------------------------------------- ricevi libri */
+
+/* Draws a QR code of text, centred in the size x size square at (x, y), quiet zone included.
+ * Returns the side actually drawn (whole pixels per module), 0 if it does not fit. */
+int qr_draw(Canvas *c, int x, int y, int size, const char *text);
+
+/* "Ricevi libri": a small web server on the Kindle. The phone scans the QR code with the address,
+ * opens a page and sends the books, which land in the books folder. On only while the screen is open.
+ * Use: rx_start() when the screen opens; in its loop alternate input_wait(150) and rx_step(), which never
+ * blocks and hands back one event at a time; rx_stop() on every way out (Back, Home, timeout, standby). */
+typedef enum {
+    RX_NONE = 0,
+    RX_ADDRESS,  /* the address is ready or changed: redraw rx_url() / rx_url_usb() and the QR code */
+    RX_STARTED,  /* a book is arriving: name, total bytes */
+    RX_PROGRESS, /* percent, at most one event every 5% */
+    RX_DONE,     /* name is now in the books folder: rescan the library */
+    RX_FAILED,   /* name = Italian text of what went wrong (book refused, transfer broken) */
+    RX_IDLE,     /* nothing happened for RX_IDLE_MIN minutes: the screen may close itself */
+} RxEventKind;
+
+#define RX_IDLE_MIN 15
+
+typedef struct {
+    int kind;        /* RxEventKind */
+    int percent;
+    long long total; /* bytes of the book arriving */
+    char name[256];  /* file name as saved, or the error text for RX_FAILED */
+} RxEvent;
+
+/* Starts the server: turns Wi-Fi on if it was off, opens the port in the Kindle firewall, picks a
+ * random token for the address. Returns 0, or <0 and rx_error() says why, in Italian. */
+/* device_name ("Kindle di Simone", from Impostazioni) goes in the title of the phone page. */
+int rx_start(const char *books_dir, const char *device_name);
+const char *rx_error(void);
+/* Serves the phones without blocking. Returns 1 and fills ev when there is an event, 0 otherwise. */
+int rx_step(RxEvent *ev);
+const char *rx_url(void);     /* "http://192.168.1.23:8080/k7f2", "" while Wi-Fi has no address yet */
+const char *rx_url_usb(void); /* same server over the USB cable (USBNetwork), "" if not available */
+/* Wi-Fi now, for the header icon and the screen: 0 = off, 1 = on but not connected (no address yet),
+ * 2 = connected. Cheap (no lipc call when connected): fine every few seconds, also without the server. */
+int rx_wifi_state(void);
+/* Stops the server, puts Wi-Fi and firewall back as they were. Safe twice and after a failed start. */
+void rx_stop(void);
+
 #endif

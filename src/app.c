@@ -902,13 +902,19 @@ static int text_centered_wrapped(Canvas *c, Face f, int size, int top, float lh,
 
 static int keyboard_edit(App *a, const char *header, const char *title, const char *note, const char *msg, int strong,
                          int start_clear, char *buf, size_t n);
+/* The keys start at y 216 (Cerca nel libro, Crea nuova raccolta) or 350 (Password, Simone 18 nov). */
+static int kb_top = 216;
 
 /* "7 · password" / "9 · password sbagliata" (the text stays, the focus starts on Cancella). */
 static int password_run(App *a, const char *essid, char *buf, size_t n, int wrong)
 {
     for (;;) {
-        if (!keyboard_edit(a, a->name, "Password", essid,
-                           wrong ? "Password sbagliata, riprova." : "Scrivi la password della rete.", wrong, wrong, buf, n))
+        kb_top = 350;
+        int ok = keyboard_edit(a, a->name, "Password", essid,
+                               wrong ? "Password sbagliata, riprova." : "Scrivi la password della rete.", wrong, wrong,
+                               buf, n);
+        kb_top = 216;
+        if (!ok)
             return 0;
         if (strlen(buf) >= 8 && strlen(buf) <= 63)
             return 1;
@@ -924,7 +930,8 @@ static void wifi_message(App *a, const char *title, const char *msg, const char 
     Canvas *c = &a->cv;
     canvas_clear(c, G_CARTA);
     ui_header(c, a->name, NULL, -1);
-    ui_title(c, 48, title);
+    if (title) /* "8 · mi collego" has none */
+        ui_title(c, 48, title);
     int tw = font_text_width(FACE_SANS_MEDIUM, 24, msg);
     font_draw_text(c, FACE_SANS_MEDIUM, 24, (a->W - tw) / 2, ui_baseline(FACE_SANS_MEDIUM, 24, top, 31), msg, G_NERO,
                    a->W - 64);
@@ -957,13 +964,75 @@ static void lock_icon(Canvas *c, int x, int y, uint8_t ink)
     canvas_fill(c, x, y + 7, 13, 9, ink);
 }
 
+/* "Voce menu", Stato Wifi / Wifi Focus: the signal, the name in Medium 20, the lock when protected. */
+static void wifi_row(Canvas *c, int x, int y, int w, const WifiNet *net, int focus)
+{
+    uint8_t ink = focus ? G_CARTA : G_NERO;
+    canvas_fill(c, x, y, w, 56, focus ? G_NERO : G_CARTA);
+    ui_wifi_glyph(c, x + 20, y + 21, net->bars, 0, ink, G_VELO);
+    font_draw_text(c, FACE_SANS_MEDIUM, 20, x + 55, ui_baseline(FACE_SANS_MEDIUM, 20, y + 15.5f, 25), net->essid, ink,
+                   w - 55 - 20 - (net->secured ? 29 : 0));
+    if (net->secured)
+        lock_icon(c, x + w - 20 - 13, y + 20, ink);
+}
+
+/* Connect to one network: the password keyboard when needed ("7"/"9"), then "8 · mi collego". 'title' is
+ * Returns 1 once connected. */
+static int wifi_join(App *a, const WifiNet *w)
+{
+    char pw[128] = "";
+    const char *pass = w->known ? NULL : !w->secured ? "" : NULL;
+    int wrong = 0, raw;
+    for (;;) {
+        if (!w->known && w->secured) {
+            if (!password_run(a, w->essid, pw, sizeof pw, wrong))
+                return 0;
+            pass = pw;
+        }
+        if (wifi_connect(w->essid, pass) != 0) {
+            memset(pw, 0, sizeof pw);
+            message(a, "Non riesco a collegarmi", w->essid, REFRESH_PARTIAL);
+            input_wait(3000, NULL);
+            return 0;
+        }
+        char m[128];
+        snprintf(m, sizeof m, "Mi collego a «%s»…", w->essid); /* "8 · mi collego" */
+        wifi_message(a, NULL, m, "Ci vuole qualche secondo.", "indietro per annullare", 402);
+        full(a, REFRESH_PARTIAL);
+        int res = 0;
+        while (res == 0) {
+            Key kk = input_wait(500, &raw);
+            if (kk == K_BACK || kk == K_HOME || kk == K_MENU || kk == K_QUIT) {
+                wifi_connect_cancel();
+                res = -3;
+                break;
+            }
+            res = wifi_connect_poll();
+        }
+        memset(pw, 0, sizeof pw); /* the password does not stay in memory */
+        ui_wifi_refresh();
+        if (res == 1) {
+            log_msg("wifi: connected");
+            return 1;
+        }
+        if (res == -1 && w->secured) { /* "9 · password sbagliata": try again */
+            wrong = 1;
+            continue;
+        }
+        if (res == -2) {
+            message(a, "Non riesco a collegarmi", w->essid, REFRESH_PARTIAL);
+            input_wait(3000, NULL);
+        }
+        return 0;
+    }
+}
+
 /* "5 · scegli la rete": returns 1 once connected (back to the QR), 0 to leave "Ricevi libri". */
 #define WIFI_MAX 9
 static int wifi_choose(App *a)
 {
     WifiNet nets[WIFI_MAX];
     int n = 0, sel = 0, scan = 1;
-    char pw[128];
     for (;;) {
         if (scan) { /* a new scan: the list is read 5 s later */
             wifi_radio_on();
@@ -999,16 +1068,8 @@ static int wifi_choose(App *a)
         ui_title(c, 48, "Scegli la rete Wi-Fi");
         font_draw_text(c, FACE_SANS, 18, 32, ui_baseline(FACE_SANS, 18, 130, 25),
                        "Il Kindle non è collegato. Scegli la rete da usare per ricevere i libri.", G_NERO, 536);
-        for (int i = 0; i < n; i++) { /* "Voce menu", Stato Wifi / Wifi Focus */
-            int y = 171 + i * 56, f = i == sel;
-            uint8_t ink = f ? G_CARTA : G_NERO;
-            canvas_fill(c, 16, y, 568, 56, f ? G_NERO : G_CARTA);
-            ui_wifi_glyph(c, 36, y + 21, nets[i].bars, 0, ink, G_VELO);
-            font_draw_text(c, FACE_SANS_MEDIUM, 20, 71, ui_baseline(FACE_SANS_MEDIUM, 20, y + 15.5f, 25), nets[i].essid,
-                           ink, 470);
-            if (nets[i].secured)
-                lock_icon(c, 552, y + 20, ink);
-        }
+        for (int i = 0; i < n; i++)
+            wifi_row(c, 16, 171 + i * 56, 568, &nets[i], i == sel);
         ui_menu_row(c, 16, 171 + n * 56, 568, "Cerca di nuovo", "", ICON_ARROW, sel == n);
         const char *hint = "centro per collegarti, indietro per uscire";
         int hw = font_text_width(FACE_MONO, 14, hint);
@@ -1027,52 +1088,114 @@ static int wifi_choose(App *a)
                 scan = 1;
                 continue;
             }
-            WifiNet *w = &nets[sel];
-            const char *pass = w->known ? NULL : !w->secured ? "" : NULL;
-            pw[0] = 0;
-            int wrong = 0;
-            for (;;) {
-                if (!w->known && w->secured) {
-                    if (!password_run(a, w->essid, pw, sizeof pw, wrong))
-                        break;
-                    pass = pw;
-                }
-                if (wifi_connect(w->essid, pass) != 0) {
-                    message(a, "Non riesco a collegarmi", w->essid, REFRESH_PARTIAL);
-                    input_wait(3000, NULL);
-                    break;
-                }
-                char m[128];
-                snprintf(m, sizeof m, "Mi collego a «%s»…", w->essid); /* "8 · mi collego" */
-                wifi_message(a, "Scegli la rete Wi-Fi", m, "Ci vuole qualche secondo.", "indietro per annullare", 402);
-                full(a, REFRESH_PARTIAL);
-                int res = 0;
-                while (res == 0) {
-                    Key kk = input_wait(500, &raw);
-                    if (kk == K_BACK || kk == K_HOME || kk == K_MENU || kk == K_QUIT) {
-                        wifi_connect_cancel();
-                        res = -3;
-                        break;
-                    }
-                    res = wifi_connect_poll();
-                }
-                memset(pw, 0, sizeof pw) /* the password does not stay in memory */, (void)0;
-                if (res == 1) {
-                    log_msg("wifi: connected");
-                    return 1;
-                }
-                if (res == -1 && w->secured) { /* "9 · password sbagliata": try again */
-                    wrong = 1;
-                    continue;
-                }
-                if (res == -2) {
-                    message(a, "Non riesco a collegarmi", w->essid, REFRESH_PARTIAL);
-                    input_wait(3000, NULL);
-                }
-                break;
-            }
+            if (wifi_join(a, &nets[sel]))
+                return 1;
         }
     }
+}
+
+/* Wi-Fi radio: 0 off, 1 on (in the simulator "Spegni wifi" only flips a flag). */
+static int sim_wifi_off;
+static int wifi_on(void)
+{
+    if (!g_sim)
+        return rx_wifi_state() > 0;
+    static int init;
+    if (!init++) {
+        const char *e = getenv("CARBONELLA_WIFI");
+        sim_wifi_off = e && !strcmp(e, "spento");
+    }
+    return !sim_wifi_off;
+}
+
+/* Impostazioni › Wi-Fi (frame "04 · Impostazioni Wifi", Simone 18 nov): the "Pannello menu", 424 px wide
+ * in the middle over the screen at 30%: the networks (signal, name, lock) and "Annulla". With the radio
+ * off, choosing Wi-Fi switches it on and looks for the networks; with it on the first row is "Spegni wifi"
+ * (Pannello menu Variant5). A network opens the password keyboard when needed, then "Mi collego"; a wrong
+ * password goes back to the keyboard. */
+static void wifi_panel_bg(App *a, const uint8_t *behind, int x, int y, int w, int h)
+{
+    for (size_t i = 0; i < (size_t)a->W * a->H; i++) /* the screen behind at 30% */
+        a->cv.px[i] = (uint8_t)(behind[i] * 30 / 100);
+    canvas_fill(&a->cv, x, y, w, h, G_CARTA);
+    canvas_frame(&a->cv, x - 1, y - 1, w + 2, h + 2, 1, G_GRAFITE);
+}
+
+static void wifi_menu(App *a)
+{
+    size_t np = (size_t)a->W * a->H;
+    uint8_t *behind = malloc(np);
+    if (!behind)
+        return;
+    memcpy(behind, a->cv.px, np);
+    int was_on = wifi_on();
+    if (!was_on) {
+        sim_wifi_off = 0;
+        wifi_radio_on();
+        ui_wifi_refresh();
+    }
+    WifiNet nets[WIFI_MAX];
+    int w = 424, x = (a->W - w) / 2;
+    wifi_scan();
+    int n = wifi_list(nets, WIFI_MAX), connected = 0;
+    if (n == 0) { /* nothing known yet: wait for the scan */
+        int h = 16 + 56 + 16, y = (a->H - h) / 2;
+        wifi_panel_bg(a, behind, x, y, w, h);
+        ui_menu_row(&a->cv, x + 16, y + 16, w - 32, "Cerco le reti…", "", ICON_NONE, 0);
+        full(a, REFRESH_PARTIAL);
+        Key k = input_wait(g_sim ? 0 : 5000, NULL);
+        if (k == K_BACK || k == K_HOME || k == K_MENU || k == K_QUIT)
+            n = -1;
+        else
+            n = wifi_list(nets, WIFI_MAX);
+    }
+    if (n >= 0) {
+        log_msg("wifi: menu, %d networks", n);
+        int off_row = was_on, rows = off_row + n + 1, sel = off_row; /* focus on the first network */
+        if (sel >= rows - 1)
+            sel = 0;
+        int h = 16 + rows * 56 + 16, y = (a->H - h) / 2;
+        wifi_panel_bg(a, behind, x, y, w, h);
+        int first = 1, chosen = -1;
+        for (;;) {
+            int r = 0;
+            if (off_row)
+                ui_menu_row(&a->cv, x + 16, y + 16, w - 32, "Spegni wifi", "", ICON_ARROW, sel == r++);
+            for (int i = 0; i < n; i++, r++)
+                wifi_row(&a->cv, x + 16, y + 16 + r * 56, w - 32, &nets[i], sel == r);
+            ui_menu_row(&a->cv, x + 16, y + 16 + r * 56, w - 32, "Annulla", "", ICON_ARROW, sel == r);
+            if (first)
+                full(a, REFRESH_PARTIAL);
+            else
+                display_update(&a->cv, (Rect){ x, y, w, h }, REFRESH_PARTIAL);
+            first = 0;
+            Key k = wait_key(a, NULL);
+            if (k == K_UP)
+                sel = (sel + rows - 1) % rows;
+            else if (k == K_DOWN)
+                sel = (sel + 1) % rows;
+            else if (k == K_SELECT || k == K_RIGHT) {
+                chosen = sel;
+                break;
+            } else if (k == K_BACK || k == K_MENU || k == K_HOME || k == K_LEFT || k == K_TIMEOUT || k == K_QUIT)
+                break;
+        }
+        if (chosen == 0 && off_row) { /* "Spegni wifi" */
+            sim_wifi_off = 1;
+            wifi_radio_off();
+            ui_wifi_refresh();
+            free(behind);
+            return;
+        }
+        if (chosen >= off_row && chosen < off_row + n)
+            connected = wifi_join(a, &nets[chosen - off_row]);
+    }
+    if (!was_on && !connected) { /* Annulla: the radio goes back off as it was */
+        sim_wifi_off = 1;
+        wifi_radio_off();
+        ui_wifi_refresh();
+    }
+    free(behind);
 }
 
 typedef struct {
@@ -1277,36 +1400,13 @@ static const SetItem SET[S_N] = {
     { 0, 0, 618, NULL, "Visualizzazione", 1 },
     { 1, 142, 166, "Archivio", "Mostra archivio", 0 }, /* Simone, 18 nov: "Mostra sottolineature" out */
     { 1, 0, 222, NULL, "Elimina archivio definitivamente", 0 },
-    { 1, 298, 322, "Sistema", "Nome dispositivo", 0 },
+    { 1, 298, 322, "Sistema", "Modifica nome dispositivo", 0 },
     { 1, 0, 378, NULL, "Wi-Fi", 0 },
     { 1, 0, 434, NULL, "Mostra percentuale batteria", 1 }, /* Simone, 18 nov */
     { 1, 0, 490, NULL, "Data e ora", 0 },
     { 1, 0, 546, NULL, "Standby automatico dopo", 1 }, /* v0.6 */
     { 1, 0, 602, NULL, "Informazioni", 0 },
 };
-
-/* Wi-Fi of the Kindle: -1 unknown (simulator), 0 off, 1 on. */
-static int wifi_state(void)
-{
-    if (g_sim)
-        return -1;
-    FILE *f = popen("lipc-get-prop com.lab126.cmd wirelessEnable 2>/dev/null", "r");
-    if (!f)
-        return -1;
-    int v = -1;
-    if (fscanf(f, "%d", &v) != 1)
-        v = -1;
-    pclose(f);
-    return v;
-}
-
-static void wifi_set(int on)
-{
-    if (g_sim)
-        return;
-    int r = system(on ? "lipc-set-prop com.lab126.cmd wirelessEnable 1" : "lipc-set-prop com.lab126.cmd wirelessEnable 0");
-    log_msg("wi-fi %s (%d)", on ? "on" : "off", r);
-}
 
 static void set_value(App *a, int i, char *out, size_t n)
 {
@@ -1320,11 +1420,7 @@ static void set_value(App *a, int i, char *out, size_t n)
     case S_MARGIN: snprintf(out, n, "%s", MARGIN_NAMES[closest(MARGINS, 3, a->lp.margin_x)]); break;
     case S_VIEW: snprintf(out, n, "Copertine"); break;
     case S_NAME: snprintf(out, n, "%s", a->name); break;
-    case S_WIFI: {
-        int w = wifi_state();
-        snprintf(out, n, "%s", w < 0 ? "—" : w ? "Acceso" : "Spento");
-        break;
-    }
+    case S_WIFI: snprintf(out, n, "%s", wifi_on() ? "Acceso" : "Spento"); break;
     case S_DATE: {
         static const char *MESI[] = { "gen", "feb", "mar", "apr", "mag", "giu",
                                       "lug", "ago", "set", "ott", "nov", "dic" };
@@ -1363,12 +1459,6 @@ static int set_change(App *a, int i, int dir)
     case S_SIZE: a->lp.size = step(SIZES, NSIZES, a->lp.size, dir); break;
     case S_LINE: a->lp.line_pct = step(LINES, NLINES, a->lp.line_pct, dir); break;
     case S_MARGIN: a->lp.margin_x = step(MARGINS, 3, a->lp.margin_x, dir); break;
-    case S_WIFI: {
-        int w = wifi_state();
-        if (w >= 0)
-            wifi_set(!w);
-        return 0;
-    }
     default: return 0; /* Carattere and Visualizzazione have one choice for now */
     }
     save_prefs(a);
@@ -1443,6 +1533,13 @@ static int settings_run(App *a)
                     input_wait(2000, NULL);
                     result = 1;
                 }
+                shown = -1;
+                continue;
+            }
+            if (sel == S_WIFI) { /* the Wi-Fi menu (Simone, 18 nov) */
+                if (k != K_SELECT && k != K_RIGHT)
+                    continue;
+                wifi_menu(a);
                 shown = -1;
                 continue;
             }
@@ -1842,7 +1939,7 @@ static int kb_row(int r, int mode, KbKey *out)
     return n;
 }
 
-static int kb_row_y(int r) { return r < 5 ? 216 + r * 64 : 552; }
+static int kb_row_y(int r) { return r < 5 ? kb_top + r * 64 : kb_top + 336; }
 
 static void kb_draw_one(App *a, int r, const KbKey *k, int focus, int active)
 {

@@ -65,18 +65,20 @@ static int battery_charging(int pct)
 /* Wi-Fi in the header: 0 off, 1 on without a network, 2 connected (rx_wifi_state of the back end, which
  * may run lipc: at most every 30 s). In the simulator CARBONELLA_WIFI=spento / senza changes it
  * (default connected, as in Figma). */
+static time_t wifi_last;
+void ui_wifi_refresh(void) { wifi_last = 0; } /* after "Spegni wifi" / a new connection */
+
 static int wifi_header_state(void)
 {
     if (g_sim) {
         const char *e = getenv("CARBONELLA_WIFI");
         return !e ? 2 : !strcmp(e, "spento") ? 0 : !strcmp(e, "senza") ? 1 : 2;
     }
-    static time_t last;
     static int state = -1;
     time_t now = time(NULL);
-    if (last && now - last < 30)
+    if (wifi_last && now - wifi_last < 30)
         return state;
-    last = now;
+    wifi_last = now;
     int was = state;
     state = rx_wifi_state();
     if (state != was)
@@ -184,9 +186,12 @@ void ui_header(Canvas *c, const char *left, const char *center, double bar)
         font_draw_text(c, FACE_MONO, 16, x, base, buf, G_GRAFITE, 0);
     }
     /* Wi-Fi between the time and the battery, 16 px each side (Simone, 18 nov) */
-    x -= 16 + 19;
+    /* Simone, 18 nov: off = no icon, on without a network = the empty fan, connected = full */
     int ws = wifi_header_state();
-    ui_wifi_glyph(c, x, 17, ws == 2 ? 3 : 0, ws == 0, G_NERO, G_CENERE);
+    if (ws > 0) {
+        x -= 16 + 19;
+        ui_wifi_glyph(c, x, 17, ws == 2 ? 3 : 0, 0, G_NERO, G_CENERE);
+    }
     ui_clock(buf, sizeof buf);
     x -= 16 + font_text_width(FACE_MONO, 16, buf);
     font_draw_text(c, FACE_MONO, 16, x, base, buf, G_NERO, 0);

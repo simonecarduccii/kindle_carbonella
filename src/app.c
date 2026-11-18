@@ -353,16 +353,12 @@ static Key wait_key(App *a, int *raw)
     } else
         k = input_wait_battery(a, t, raw);
     if (k == K_TIMEOUT && sb) {
-        Key w = light_standby(a);
-        if (w == K_TIMEOUT) { /* powerd's goingToScreenSaver arrives next: standby() shows the cover */
-            log_msg("light standby over: real standby");
-            if (auto_standby(a) != 0)
-                full(a, REFRESH_FULL); /* no real standby: the page comes back */
-        } else if (w == K_SLEEP) /* the power button during the light standby */
-            standby(a);
-        else if (w == K_QUIT)
-            return K_QUIT;
-        return K_NONE; /* the key that woke it does nothing else */
+        /* Simone, 18 nov ("metti lo standby automatico"): the real standby of powerd starts right at
+         * "Standby automatico dopo", without the light standby first (cover with the Kindle awake for 3
+         * more minutes), which looked as if nothing happened. The power button wakes it. */
+        if (auto_standby(a) != 0)
+            full(a, REFRESH_FULL); /* no real standby: the page comes back */
+        return K_NONE;
     }
     if (k != K_TIMEOUT && k != K_SLEEP && k != K_WAKE)
         touch_screensaver(); /* someone is reading: powerd's own timer starts again */

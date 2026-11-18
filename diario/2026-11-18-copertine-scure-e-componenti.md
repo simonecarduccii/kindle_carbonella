@@ -12,6 +12,8 @@ Nuova sezione Figma **"Copertine scure · proposte colore (18 nov)"**, sotto i m
 - **B · Cenere**: fondo Cenere (G6), testo bianco, illustrazione Grafite.
 - **C · Grafite**: fondo Grafite (G2), testo bianco, illustrazione Smog.
 
+Tutti i grigi delle proposte sono collegati agli stili colore salvati (E-ink/Inchiostro … Carta), non a valori esadecimali (Simone: "usa i colori salvati").
+
 Il nero pieno resta solo su fasce e loghi piccoli: le grandi aree nere lasciano più ombre al cambio pagina. Sellerio è già scura: nelle proposte cambia solo l'illustrazione.
 
 ![Proposte copertine scure](img/2026-11-18-copertine-scure-proposte.png)

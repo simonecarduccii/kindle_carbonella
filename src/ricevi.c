@@ -154,6 +154,7 @@ int rx_wifi_state(void)
 {
     if (g_sim)
         return 2;
+    wifi_autoconnect_tick();
     char ip[64];
     if_addr("wlan0", ip, sizeof ip);
     if (ip[0])
@@ -709,6 +710,7 @@ int rx_step(RxEvent *ev)
         return pop(ev);
     }
     double now = now_ms();
+    wifi_autoconnect_tick();
     if (now - R.last_ip_check > 1000) { /* Wi-Fi may still be connecting, or the network may change */
         R.last_ip_check = now;
         check_addresses();

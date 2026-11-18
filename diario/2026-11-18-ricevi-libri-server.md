@@ -106,3 +106,18 @@ radio (wifid "On", compare `wlan0`, parte `wpa_supplicant`). Per spegnerla `enab
 Quindi ora Carbonella decide se il Wi-Fi è acceso guardando se `wlan0` esiste (non `wirelessEnable`, che
 può dire 1 a radio spenta), e all'uscita ripete lo spegnimento se `wlan0` c'è ancora. Il collegamento
 vero a una rete non è ancora stato provato: l'hotspot di Simone non era visibile.
+
+## Le reti restano salvate (16:55 UTC)
+
+Simone: "salva sempre le password del wifi in modo che resti connesso".
+
+- La password scritta diventa un profilo di wifid (il servizio Wi-Fi del Kindle), che la conserva anche
+  dopo il riavvio. Viene tolta solo se il primo collegamento con quella password fallisce: così una
+  password sbagliata non resta salvata.
+- Con l'interfaccia Amazon ferma nessuno chiede a wifid di collegarsi da solo: ora lo fa Carbonella. Circa
+  6 secondi dopo aver acceso la radio, se non c'è ancora un indirizzo, sceglie la rete salvata con il
+  segnale migliore e si collega (`wifi_autoconnect_tick`, chiamata da sola da `rx_step` e
+  `rx_wifi_state`).
+- `wifi_connected_essid()`: il nome della rete a cui il Kindle è collegato, per segnarla nell'elenco.
+
+Da verificare sul Kindle con una rete salvata in portata.

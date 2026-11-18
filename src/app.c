@@ -862,7 +862,7 @@ static void key_test(App *a);
 enum {
     S_GOALS, S_GOAL, S_YEAR, S_FONT, S_SIZE, S_LINE, S_MARGIN, S_VIEW, /* page 1, as in Figma */
     S_SHOWARCH, S_DELARCH,                                             /* page 2, v1.0.4 */
-    S_NAME, S_WIFI, S_BATTPCT, S_DATE, S_STANDBY, S_INFO, S_KINDLE,
+    S_NAME, S_WIFI, S_BATTPCT, S_DATE, S_STANDBY, S_INFO,
     S_N
 };
 
@@ -893,7 +893,6 @@ static const SetItem SET[S_N] = {
     { 1, 0, 490, NULL, "Data e ora", 0 },
     { 1, 0, 546, NULL, "Standby automatico dopo", 1 }, /* v0.6 */
     { 1, 0, 602, NULL, "Informazioni", 0 },
-    { 1, 0, 658, NULL, "Torna al kindle", 0 },
 };
 
 /* Wi-Fi of the Kindle: -1 unknown (simulator), 0 off, 1 on. */
@@ -959,8 +958,8 @@ static void set_row(App *a, int i, int focus)
     if (SET[i].stepper) { /* as in Figma: "‹  30 m  ›", no arrow */
         snprintf(w, sizeof w, "\xE2\x80\xB9  %s  \xE2\x80\xBA", v);
         ui_menu_row(&a->cv, 32, SET[i].row_top, a->W - 64, SET[i].label, w, ICON_NONE, focus);
-    } else
-        ui_menu_row(&a->cv, 32, SET[i].row_top, a->W - 64, SET[i].label, v, ICON_ARROW, focus);
+    } else /* Simone, 18 nov: Informazioni is only a value, no arrow */
+        ui_menu_row(&a->cv, 32, SET[i].row_top, a->W - 64, SET[i].label, v, i == S_INFO ? ICON_NONE : ICON_ARROW, focus);
 }
 
 /* Change a setting by one step (dir +1 / -1). Returns 1 if the reading page must be laid out again. */
@@ -1041,10 +1040,6 @@ static int settings_run(App *a)
         } else if (k == K_NEXT) {
             sel = page == 0 ? S_SHOWARCH : 0;
         } else if (k == K_SELECT || k == K_RIGHT || k == K_LEFT) {
-            if (sel == S_KINDLE && k == K_SELECT) {
-                result = 2;
-                break;
-            }
             if (sel == S_SHOWARCH && (k == K_SELECT || k == K_RIGHT)) {
                 result = 3; /* the grid of the archive opens from the Home */
                 break;
@@ -1311,18 +1306,18 @@ static void goals_draw(App *a, int sel)
         int w = font_text_width(FACE_SANS_MEDIUM, 30, buf);
         font_draw_text(c, FACE_MONO, 13, stat_x[i] + w + 8, ui_baseline(FACE_MONO, 13, 423, 17), stat_l[i], INK_333, 0);
     }
-    canvas_fill(c, 32, 462, 536, 2, G_NERO);
+    canvas_fill(c, 32, 462, 536, 1, G_CENERE); /* Simone, 18 nov: 1 px #666 */
 
     /* this year: the books as numbered boxes, the ones read first */
-    font_draw_text(c, FACE_SANS_MEDIUM, 13, 32, ui_baseline(FACE_SANS_MEDIUM, 13, 482, 17), "QUEST\xE2\x80\x99" "ANNO",
+    font_draw_text(c, FACE_SANS_MEDIUM, 13, 32, ui_baseline(FACE_SANS_MEDIUM, 13, 481, 17), "QUEST\xE2\x80\x99" "ANNO",
                    G_CENERE, 0);
     int read = books_read_this_year(a);
     snprintf(buf, sizeof buf, "%d libr%s lett%s di %d", read, read == 1 ? "o" : "i", read == 1 ? "o" : "i",
              a->books_year);
-    font_draw_text(c, FACE_SANS_MEDIUM, 20, 32, ui_baseline(FACE_SANS_MEDIUM, 20, 502, 26), buf, G_NERO, 0);
+    font_draw_text(c, FACE_SANS_MEDIUM, 20, 32, ui_baseline(FACE_SANS_MEDIUM, 20, 501, 26), buf, G_NERO, 0);
     int ydays = 365 + ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0);
     double expected = (double)a->books_year * (tn.tm_yday + 1) / ydays;
-    text_right(c, FACE_MONO_MEDIUM, 16, 568, ui_baseline(FACE_MONO_MEDIUM, 16, 506, 21),
+    text_right(c, FACE_MONO_MEDIUM, 16, 568, ui_baseline(FACE_MONO_MEDIUM, 16, 505, 21),
                read + 0.5 >= expected ? "in linea" : "in ritardo", G_NERO);
     int nb = a->books_year > 0 ? a->books_year : 0;
     int cols = nb <= 12 ? 6 : (nb + 1) / 2; /* two rows, as in the frame; more books = narrower boxes */
@@ -1333,13 +1328,13 @@ static void goals_draw(App *a, int sel)
         bw = (int)(pitch - 7);
     }
     for (int i = 0; i < nb; i++) {
-        int bx = (int)lrintf(32 + (i % cols) * pitch), by = 536 + (i / cols) * 32;
+        int bx = (int)lrintf(32 + (i % cols) * pitch), by = 535 + (i / cols) * 32;
         int done = i < read;
         canvas_fill(c, bx, by, bw, 24, done ? G_CENERE : G_LEGGERO);
         snprintf(buf, sizeof buf, "%d", i + 1);
         if (font_text_width(FACE_MONO_MEDIUM, 13, buf) <= bw - 2)
             font_draw_text(c, FACE_MONO_MEDIUM, 13, centered_x(FACE_MONO_MEDIUM, 13, bx, bw, buf),
-                           ui_baseline(FACE_MONO_MEDIUM, 13, by + 4, 17), buf, done ? G_CARTA : G_CENERE, 0);
+                           ui_baseline(FACE_MONO_MEDIUM, 13, by + 3.5f, 17), buf, done ? G_CARTA : G_CENERE, 0);
     }
 
     /* Imposta */

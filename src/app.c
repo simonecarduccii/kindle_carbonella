@@ -1678,7 +1678,7 @@ static int books_read_this_year(App *a)
 }
 
 enum { G_ROW_GOAL, G_ROW_YEAR, G_ROWS };
-#define GOALS_ROW_TOP 654
+#define GOALS_ROW_TOP 595
 
 static void goals_row(App *a, int i, int focus)
 {
@@ -1691,7 +1691,7 @@ static void goals_row(App *a, int i, int focus)
                 i == G_ROW_GOAL ? "Obiettivo giornaliero" : "Libri da leggere nell’anno", v, ICON_NONE, focus);
 }
 
-/* "06 · Obiettivi" as redrawn by Simone on 17 nov (Figma 102:2118): today with this week's total and a
+/* "06 · Obiettivi" as redrawn by Simone on 17 and 18 nov (Figma 102:2118): today with this week's total and a
  * thin bar, the month as numbered cells, series and record, this year's books as numbered boxes, and
  * the two goals to set. Texts, positions and greys from the frame. */
 #define INK_333 204 /* #333 captions */
@@ -1744,10 +1744,10 @@ static void goals_draw(App *a, int sel)
 
     /* calendar of the month: numbered cells 68 x 24 */
     snprintf(buf, sizeof buf, "%s %d", MESI_LUNGHI[tn.tm_mon], tn.tm_year + 1900);
-    font_draw_text(c, FACE_SANS_MEDIUM, 13, 32, ui_baseline(FACE_SANS_MEDIUM, 13, 168, 17), buf, G_CENERE, 0);
+    font_draw_text(c, FACE_SANS_MEDIUM, 13, 32, ui_baseline(FACE_SANS_MEDIUM, 13, 158, 17), buf, G_CENERE, 0);
     for (int i = 0; i < 7; i++)
-        font_draw_text(c, FACE_MONO_MEDIUM, 13, centered_x(FACE_MONO_MEDIUM, 13, 34 + i * 76, 68, LETTERE[i]),
-                       ui_baseline(FACE_MONO_MEDIUM, 13, 190, 17), LETTERE[i], G_CENERE, 0);
+        font_draw_text(c, FACE_MONO_MEDIUM, 13, centered_x(FACE_MONO_MEDIUM, 13, (int)lrintf(32 + i * 77.7f), 70, LETTERE[i]),
+                       ui_baseline(FACE_MONO_MEDIUM, 13, 183, 17), LETTERE[i], G_CENERE, 0);
     struct tm first = tn;
     first.tm_mday = 1;
     first.tm_hour = 12;
@@ -1758,7 +1758,7 @@ static void goals_draw(App *a, int sel)
     int ndays = MDAYS[tn.tm_mon] + (tn.tm_mon == 1 && ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0));
     for (int d = 1; d <= ndays; d++) {
         int cell = off + d - 1;
-        int x = 34 + (cell % 7) * 76, cy = 213 + (cell / 7) * 30;
+        int x = (int)lrintf(32 + (cell % 7) * 77.7f), cy = 209 + (cell / 7) * 29; /* cells 70 x 23 */
         int ago = tn.tm_mday - d;
         int sct = ago >= 0 && ago < HIST_DAYS ? h->secs[ago] : 0;
         uint8_t fill = G_CARTA, ink = G_CENERE; /* not read, or still to come */
@@ -1767,12 +1767,12 @@ static void goals_draw(App *a, int sel)
             ink = G_CARTA;
         } else if (ago >= 0 && sct > 0) /* read less */
             fill = G_LEGGERO;
-        canvas_fill(c, x, cy, 68, 24, fill);
+        canvas_fill(c, x, cy, 70, 23, fill);
         if (ago == 0) /* today */
-            canvas_frame(c, x, cy, 68, 24, 3, G_CENERE);
+            canvas_frame(c, x, cy, 70, 23, 2, G_CENERE);
         snprintf(buf, sizeof buf, "%d", d);
-        font_draw_text(c, FACE_MONO_MEDIUM, 13, centered_x(FACE_MONO_MEDIUM, 13, x, 68, buf),
-                       ui_baseline(FACE_MONO_MEDIUM, 13, cy + 3.5f, 17), buf, ink, 0);
+        font_draw_text(c, FACE_MONO_MEDIUM, 13, centered_x(FACE_MONO_MEDIUM, 13, x, 70, buf),
+                       ui_baseline(FACE_MONO_MEDIUM, 13, cy + 3, 17), buf, ink, 0);
     }
 
     /* series and record: days in a row with the goal reached (today counts once reached) */
@@ -1789,22 +1789,22 @@ static void goals_draw(App *a, int sel)
     const char *stat_l[2] = { streak == 1 ? "giorno di fila" : "giorni di fila", "record giorni di fila" };
     for (int i = 0; i < 2; i++) {
         snprintf(buf, sizeof buf, "%d", stat_v[i]);
-        font_draw_text(c, FACE_SANS_MEDIUM, 30, stat_x[i], ui_baseline(FACE_SANS_MEDIUM, 30, 405, 39), buf, G_NERO, 0);
+        font_draw_text(c, FACE_SANS_MEDIUM, 30, stat_x[i], ui_baseline(FACE_SANS_MEDIUM, 30, 377, 39), buf, G_NERO, 0);
         int w = font_text_width(FACE_SANS_MEDIUM, 30, buf);
-        font_draw_text(c, FACE_MONO, 13, stat_x[i] + w + 8, ui_baseline(FACE_MONO, 13, 423, 17), stat_l[i], INK_333, 0);
+        font_draw_text(c, FACE_MONO, 13, stat_x[i] + w + 8, ui_baseline(FACE_MONO, 13, 395, 17), stat_l[i], INK_333, 0);
     }
-    canvas_fill(c, 32, 462, 536, 1, G_CENERE); /* Simone, 18 nov: 1 px #666 */
+    canvas_fill(c, 32, 424, 536, 1, G_CENERE); /* Simone, 18 nov: 1 px #666 */
 
     /* this year: the books as numbered boxes, the ones read first */
-    font_draw_text(c, FACE_SANS_MEDIUM, 13, 32, ui_baseline(FACE_SANS_MEDIUM, 13, 481, 17), "QUEST\xE2\x80\x99" "ANNO",
+    font_draw_text(c, FACE_SANS_MEDIUM, 13, 32, ui_baseline(FACE_SANS_MEDIUM, 13, 433, 17), "QUEST\xE2\x80\x99" "ANNO",
                    G_CENERE, 0);
     int read = books_read_this_year(a);
     snprintf(buf, sizeof buf, "%d libr%s lett%s di %d", read, read == 1 ? "o" : "i", read == 1 ? "o" : "i",
              a->books_year);
-    font_draw_text(c, FACE_SANS_MEDIUM, 20, 32, ui_baseline(FACE_SANS_MEDIUM, 20, 501, 26), buf, G_NERO, 0);
+    font_draw_text(c, FACE_SANS_MEDIUM, 20, 32, ui_baseline(FACE_SANS_MEDIUM, 20, 453, 26), buf, G_NERO, 0);
     int ydays = 365 + ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0);
     double expected = (double)a->books_year * (tn.tm_yday + 1) / ydays;
-    text_right(c, FACE_MONO_MEDIUM, 16, 568, ui_baseline(FACE_MONO_MEDIUM, 16, 505, 21),
+    text_right(c, FACE_MONO_MEDIUM, 16, 568, ui_baseline(FACE_MONO_MEDIUM, 16, 457, 21),
                read + 0.5 >= expected ? "in linea" : "in ritardo", G_NERO);
     int nb = a->books_year > 0 ? a->books_year : 0;
     int cols = nb <= 12 ? 6 : (nb + 1) / 2; /* two rows, as in the frame; more books = narrower boxes */
@@ -1815,7 +1815,7 @@ static void goals_draw(App *a, int sel)
         bw = (int)(pitch - 7);
     }
     for (int i = 0; i < nb; i++) {
-        int bx = (int)lrintf(32 + (i % cols) * pitch), by = 535 + (i / cols) * 32;
+        int bx = (int)lrintf(32 + (i % cols) * pitch), by = 487 + (i / cols) * 32;
         int done = i < read;
         canvas_fill(c, bx, by, bw, 24, done ? G_CENERE : G_LEGGERO);
         snprintf(buf, sizeof buf, "%d", i + 1);
@@ -1825,7 +1825,7 @@ static void goals_draw(App *a, int sel)
     }
 
     /* Imposta */
-    ui_group_label(c, 52, 630, "Imposta");
+    ui_group_label(c, 52, 571, "Imposta");
     for (int i = 0; i < G_ROWS; i++)
         goals_row(a, i, i == sel);
     free(h); /* no footer, as in the frame */

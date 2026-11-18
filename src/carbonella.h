@@ -389,6 +389,12 @@ int wifi_connect(const char *essid, const char *password);
  * -1 wrong password ("Password sbagliata, riprova."), -2 no connection (network gone, too far). */
 int wifi_connect_poll(void);
 void wifi_connect_cancel(void);
+/* Name of the network the Kindle is connected to, "" if none (to mark it in the list). */
+const char *wifi_connected_essid(void);
+/* Reconnects to the best saved network ~6 s after wifi_radio_on(), once. Called by rx_step() and
+ * rx_wifi_state(): nothing else to do. Passwords stay saved in wifid's profiles (removed only when
+ * a password just typed turns out wrong). */
+void wifi_autoconnect_tick(void);
 
 /* Stops the server, puts Wi-Fi and firewall back as they were. Safe twice and after a failed start. */
 void rx_stop(void);

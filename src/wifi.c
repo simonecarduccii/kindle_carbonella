@@ -33,6 +33,14 @@ static struct {
     int active;
 } W;
 
+/* Automatic reconnection to a saved network after the radio comes on (Simone, 18 nov: "salva sempre
+ * le password del wifi in modo che resti connesso"). wifid keeps the profiles, but with the framework
+ * stopped nobody asks it to connect: we do, once, a few seconds after switching the radio on. */
+static struct {
+    double radio_on_at;
+    int tried;
+} A;
+
 static int cmd_out(const char *cmd, char *out, size_t n)
 {
     out[0] = 0;
@@ -66,6 +74,9 @@ int wifi_radio_on(void)
     int r = system("lipc-set-prop com.lab126.cmd wirelessEnable 1 2>/dev/null");
     r |= system("lipc-set-prop -i com.lab126.wifid enable 1 2>/dev/null");
     log_msg("wifi: radio on (%d)", r);
+    A.radio_on_at = now_ms();
+    A.tried = 0;
+    (void)!system("lipc-set-prop com.lab126.wifid scan '' 2>/dev/null");
     return r == 0 ? 0 : -1;
 }
 
@@ -274,6 +285,45 @@ int wifi_connect_poll(void)
         return -2;
     }
     return 0;
+}
+
+const char *wifi_connected_essid(void)
+{
+    static char essid[64];
+    essid[0] = 0;
+    if (g_sim) {
+        snprintf(essid, sizeof essid, "Casa");
+        return essid;
+    }
+    if (access("/sys/class/net/wlan0", F_OK) != 0)
+        return essid;
+    char buf[1024], v[16];
+    cmd_out("lipc-hash-prop -n com.lab126.wifid currentEssid 2>/dev/null", buf, sizeof buf);
+    const char *b = strchr(buf, '{'), *e = b ? strchr(b, '}') : NULL;
+    if (b && e && hval(b, e, "connected", v, sizeof v) && !strcmp(v, "yes"))
+        hval(b, e, "essid", essid, sizeof essid);
+    return essid;
+}
+
+void wifi_autoconnect_tick(void)
+{
+    if (g_sim || A.tried || A.radio_on_at <= 0 || W.active || now_ms() - A.radio_on_at < 6000)
+        return;
+    A.tried = 1;
+    if (access("/sys/class/net/wlan0", F_OK) != 0 || has_address())
+        return; /* radio off again, or wifid connected by itself */
+    WifiNet n[24];
+    int k = wifi_list(n, 24);
+    for (int i = 0; i < k; i++)
+        if (n[i].known) { /* the list puts the saved ones first, best signal first */
+            log_msg("wifi: reconnecting to the saved network %s", n[i].essid);
+            char q[200], cmd[300];
+            quote(n[i].essid, q, sizeof q);
+            snprintf(cmd, sizeof cmd, "lipc-set-prop com.lab126.wifid cmConnect %s 2>/dev/null", q);
+            (void)!system(cmd);
+            return;
+        }
+    log_msg("wifi: no saved network in range");
 }
 
 void wifi_connect_cancel(void)
